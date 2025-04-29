@@ -21,7 +21,7 @@
                 <div class="card-body">
                     <form method="POST" action="{{ route('login') }}">
                         @csrf
-
+<input type="hidden" name="expo_token" id="expo_token" value="">
                         <div class="form-group row mb-0">
 
                             <div class="col-md-12">
@@ -76,17 +76,17 @@
                         </div>
 
                         @if(
-                        	(bool) config_cache('captcha.enabled') &&
-                        	(bool) config_cache('captcha.active.login') ||
-                        	(
-                        		(bool) config_cache('captcha.triggers.login.enabled') &&
-                        		request()->session()->has('login_attempts') &&
-                        		request()->session()->get('login_attempts') >= config('captcha.triggers.login.attempts')
-                        	)
+                                (bool) config_cache('captcha.enabled') &&
+                                (bool) config_cache('captcha.active.login') ||
+                                (
+                                        (bool) config_cache('captcha.triggers.login.enabled') &&
+                                        request()->session()->has('login_attempts') &&
+                                        request()->session()->get('login_attempts') >= config('captcha.triggers.login.attempts')
+                                )
                         )
-	                        <div class="d-flex justify-content-center mb-3">
-	                            {!! Captcha::display() !!}
-	                        </div>
+                                <div class="d-flex justify-content-center mb-3">
+                                    {!! Captcha::display() !!}
+                                </div>
                         @endif
 
                         <button type="submit" class="btn btn-primary btn-block btn-lg font-weight-bold rounded-pill">
@@ -132,6 +132,22 @@ document.addEventListener("DOMContentLoaded", function() {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get(name);
     }
+    
+    const expoToken = getQueryParam('expo_token'); 
+    console.log("🚀 ~ document.addEventListener ~ expoToken:", expoToken)
+// or you can set this from a variable
+    if (expoToken) {
+        const expoTokenInput = document.getElementById('expo_token');
+        if (expoTokenInput) {
+            expoTokenInput.value = expoToken; // Set the expo_token dynamically
+        }
+    }else{
+        const expoTokenInput = document.getElementById('expo_token');
+        if (expoTokenInput) {
+            expoTokenInput.value = 'expoToken'; // Set the expo_token dynamically
+        }
+    }
+    
     const email = getQueryParam('email');
     if (email) {
         const emailInput = document.getElementById('email');
