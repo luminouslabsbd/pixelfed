@@ -1,32 +1,19 @@
+// firebase-messaging-sw.js
 importScripts(
-    "https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"
+    "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
 );
 importScripts(
-    "https://www.gstatic.com/firebasejs/9.6.1/firebase-messaging-compat.js"
+    "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js"
 );
 
-// Your Firebase config
 firebase.initializeApp({
-    apiKey: process.env.VUE_APP_FIREBASE_API_KEY,
-    authDomain: process.env.VUE_APP_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.VUE_APP_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.VUE_APP_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.VUE_APP_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.VUE_APP_FIREBASE_APP_ID,
-    measurementId: process.env.VUE_APP_FIREBASE_MEASUREMENT_ID,
+    apiKey: "AIzaSyCxKyv-Xh5R7iStYT9-MD7mdgb4rc3p3z0",
+    authDomain: "pixelfed-38904.firebaseapp.com",
+    projectId: "pixelfed-38904",
+    storageBucket: "pixelfed-38904.firebasestorage.app",
+    messagingSenderId: "1080382857079",
+    appId: "1:1080382857079:web:412638d701febb0c034b72",
+    measurementId: "G-PTH81EBDG4",
 });
 
 const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage(function (payload) {
-    // console.log(
-    //     "[firebase-messaging-sw.js] FCM Received background message ",
-    //     payload
-    // );
-    const { title, body, icon } = payload.notification;
-
-    self.registration.showNotification(title, {
-        body,
-        icon: icon || "/default-icon.png",
-    });
-});
