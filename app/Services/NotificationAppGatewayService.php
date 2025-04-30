@@ -137,7 +137,7 @@ class NotificationAppGatewayService
 
     public static function bodyTitleMake($type ,$actor){
 
-        $keys = ['follow','like','comment'];
+        $keys = ['follow','like','comment','mention'];
     }
 
     public static function sendFcmNotification($userToken,$type, $actor )
