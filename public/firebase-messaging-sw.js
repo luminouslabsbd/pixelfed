@@ -17,3 +17,18 @@ firebase.initializeApp({
 });
 
 const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage(function (payload) {
+    console.log(
+        "[firebase-messaging-sw.js] Received background message ",
+        payload
+    );
+
+    const notificationTitle = payload.notification?.title || "New Notification";
+    const notificationOptions = {
+        body: payload.notification?.body,
+        icon: "/firebase-logo.png", // You can customize this path
+    };
+
+    self.registration.showNotification(notificationTitle, notificationOptions);
+});
