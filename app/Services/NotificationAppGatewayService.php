@@ -142,7 +142,14 @@ class NotificationAppGatewayService
 
     public static function sendFcmNotification($userToken,$type, $actor )
     {
+        \Log::info($userToken);
+        \Log::info($type);
+        \Log::info($actor);
+
         $accessToken = self::getGoogleAccessToken();
+        
+        \Log::info($accessToken);
+
         if($accessToken){
             $response = Http::withToken($accessToken)
                 ->withHeaders([
@@ -160,6 +167,7 @@ class NotificationAppGatewayService
                         ],
                     ],
                 ]);
+            \Log::info($response->json());
             return $response->json();
         }
 
