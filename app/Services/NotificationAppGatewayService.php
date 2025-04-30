@@ -135,9 +135,17 @@ class NotificationAppGatewayService
         });
     }
 
-    public static function bodyTitleMake($type ,$actor){
+    public static function bodyTitleMake($type, $actor)
+    {
+        $messages = [
+            'follow'  => "$actor followed your profile.",
+            'like'    => "$actor liked your post.",
+            'comment' => "$actor commented on your post.",
+            'mention' => "$actor mentioned you in a post.",
+            'dm'      => "$actor sent you a direct message.",
+        ];
 
-        $keys = ['follow','like','comment','mention'];
+        return $messages[$type] ?? "$actor interacted with you.";
     }
 
     public static function sendFcmNotification($userToken,$type, $actor )
@@ -147,9 +155,9 @@ class NotificationAppGatewayService
         \Log::info($actor);
 
         $accessToken = self::getGoogleAccessToken();
-        
-        \Log::info($accessToken);
 
+        \Log::info($accessToken);
+        
         if($accessToken){
             $response = Http::withToken($accessToken)
                 ->withHeaders([
@@ -160,7 +168,7 @@ class NotificationAppGatewayService
                         'token' => $userToken,
                         'notification' => [
                             'title' => env('APP_NAME') ?? "Pixelfed",
-                            'body' => $actor .  ' '. $type . ' ' .' your post', // Fixed string concatenation and grammar
+                            'body' => self::bodyTitleMake($type, $actor) // Fixed string concatenation and grammar
                         ],
                         'data' => [
                             'story_id' => 'story_12345',

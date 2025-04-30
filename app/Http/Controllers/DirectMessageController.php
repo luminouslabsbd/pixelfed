@@ -21,10 +21,12 @@ use App\Services\UserStorageService;
 use App\Services\WebfingerService;
 use App\Status;
 use App\UserFilter;
+use App\User;
 use App\Util\ActivityPub\Helpers;
 use App\Util\Lexer\Autolink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Services\NotificationAppGatewayService;
 
 class DirectMessageController extends Controller
 {
@@ -219,6 +221,11 @@ class DirectMessageController extends Controller
             $notification->item_id = $dm->id;
             $notification->item_type = "App\DirectMessage";
             $notification->save();
+        }
+
+        $userInfo = User::where('profile_id',$notification->actor_id)->select('name','expo_token')->first();
+        if($userInfo && $userInfo->expo_token != null){
+            NotificationAppGatewayService::send($userInfo->expo_token, 'dm', $userInfo->username);
         }
 
         if ($recipient->domain) {
