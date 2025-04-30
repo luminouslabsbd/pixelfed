@@ -152,11 +152,6 @@ class NotificationAppGatewayService
     
         $accessToken = self::getGoogleAccessToken();
 
-        \Log::info($userToken);
-        \Log::info($type);
-        \Log::info($actor);
-        \Log::info($accessToken);
-
         if($accessToken){
             $response = Http::withToken($accessToken)
                 ->withHeaders([
