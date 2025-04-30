@@ -51,6 +51,7 @@ class AccountTransformer extends Fractal\TransformerAbstract
         $is_admin = ! $local ? false : in_array($profile->id, $adminIds);
         $acct = $local ? $profile->username : substr($profile->username, 1);
         $username = $local ? $profile->username : explode('@', $acct)[0];
+        
         $res = [
             'id' => (string) $profile->id,
             'username' => $username,
@@ -73,6 +74,13 @@ class AccountTransformer extends Fractal\TransformerAbstract
             'last_fetched_at' => optional($profile->last_fetched_at)->toJSON(),
             'pronouns' => PronounService::get($profile->id),
             'location' => $profile->location,
+
+            'notify_enabled' => $profile->notify_enabled ?? true,
+            'notify_like' =>  $profile->notify_like  ?? true,
+            'notify_follow' =>  $profile->notify_follow   ?? true,
+            'notify_mention' =>  $profile->notify_mention  ?? true,
+            'notify_comment'=> $profile->notify_comment  ?? true,
+            
         ];
 
         return $res;

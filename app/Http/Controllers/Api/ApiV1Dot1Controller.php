@@ -1114,15 +1114,18 @@ class ApiV1Dot1Controller extends Controller
 
     public function updatePush(Request $request)
     {
+       
         abort_unless($request->hasHeader('X-PIXELFED-APP'), 404, 'Not found');
         abort_if(! $request->user() || ! $request->user()->token(), 403);
         abort_unless($request->user()->tokenCan('push'), 403);
-        abort_unless(NotificationAppGatewayService::enabled(), 404, 'Push notifications are not supported on this server.');
-        abort_if($request->user()->status, 422, 'Cannot access this resource at this time');
+        // abort_unless(NotificationAppGatewayService::enabled(), 404, 'Push notifications are not supported on this server.');
 
+        abort_if($request->user()->status, 422, 'Cannot access this resource at this time');
+        
         $this->validate($request, [
             'notify_enabled' => 'required',
-            'token' => ['required', 'string', new ExpoPushTokenRule],
+            // 'token' => ['required', 'token', new ExpoPushTokenRule],
+            'token' => ['required'],
             'notify_like' => 'sometimes',
             'notify_follow' => 'sometimes',
             'notify_mention' => 'sometimes',
@@ -1132,8 +1135,8 @@ class ApiV1Dot1Controller extends Controller
         $pid = $request->user()->profile_id;
         abort_if(! $pid, 422, 'An error occured');
         $expoToken = $request->input('token');
-
         $existing = User::where('profile_id', '!=', $pid)->whereExpoToken($expoToken)->count();
+
         abort_if($existing && $existing > 5, 400, 'Push token is already used by another account');
 
         $request->user()->update([
@@ -1154,20 +1157,21 @@ class ApiV1Dot1Controller extends Controller
             $request->user()->update(['notify_comment' => (bool) $request->boolean('notify_comment')]);
         }
 
-        $user = $request->user();
+        // $user = $request->user();
 
-        $res = [
-            'version' => PushNotificationService::PUSH_GATEWAY_VERSION,
-            'notify_enabled' => (bool) $user->notify_enabled,
-            'has_token' => (bool) $user->expo_token,
-            'notify_like' => (bool) $user->notify_like,
-            'notify_follow' => (bool) $user->notify_follow,
-            'notify_mention' => (bool) $user->notify_mention,
-            'notify_comment' => (bool) $user->notify_comment,
-        ];
-
-        return $this->json($res);
+        // $res = [
+        //     'version' => PushNotificationService::PUSH_GATEWAY_VERSION,
+        //     'notify_enabled' => (bool) $user->notify_enabled,
+        //     'has_token' => (bool) $user->expo_token,
+        //     'notify_like' => (bool) $user->notify_like,
+        //     'notify_follow' => (bool) $user->notify_follow,
+        //     'notify_mention' => (bool) $user->notify_mention,
+        //     'notify_comment' => (bool) $user->notify_comment,
+        // ];
+        
+        return $this->json(true);
     }
+
 
     /**
      * POST /api/v1.1/status/create
