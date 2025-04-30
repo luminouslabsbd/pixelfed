@@ -127,8 +127,8 @@ export default {
 				})
 				this.user = window._sharedData.user;
 
-				console.log("🚀 ~ FCM Token:", token)
-				console.log("🚀 ~ User data", this.user)
+				// console.log("🚀 ~ FCM Token:", token)
+				// console.log("🚀 ~ User data", this.user)
 				await this.saveTokenToServer(token)
 			} catch (err) {
 				console.error('Error getting FCM token:', err)
@@ -137,18 +137,24 @@ export default {
 		async saveTokenToServer(token) {
 			try {
 				await axios.post(
-					'/api/push/update',
+					'/api/v1.1/push/update',
 					{
 						token,
-						// notify_enabled: true, // or false
-						// notify_like: true,    // optional
-						// notify_follow: true,  // optional
-						// notify_mention: true,
-						// notify_comment: true,
-					}
+						notify_enabled: true,
+						notify_like: this.user.notify_like ?? true,
+						notify_follow: this.user.notify_follow ?? true,
+						notify_mention: this.user.notify_mention ?? true,
+						notify_comment: this.user.notify_comment ?? true,
+						user: this.user
+					},
+					{
+						headers: {
+							'X-PIXELFED-APP': 'Pixelfed'
+						}
 
+					}
 				);
-				alert('Token saved successfully.');
+				// alert('Token saved successfully.');
 			} catch (err) {
 				console.error('Error saving token:', err.response?.data || err.message);
 			}
