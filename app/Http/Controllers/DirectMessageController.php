@@ -223,7 +223,7 @@ class DirectMessageController extends Controller
             $notification->save();
         }
 
-        $userInfo = User::where('profile_id',$notification->actor_id)->select('name','expo_token')->first();
+        $userInfo = User::where('profile_id',$notification->profile_id)->select('name','expo_token')->first();
         if($userInfo && $userInfo->expo_token != null){
             NotificationAppGatewayService::send($userInfo->expo_token, 'dm', $userInfo->username);
         }
