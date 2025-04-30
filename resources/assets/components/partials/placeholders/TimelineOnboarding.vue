@@ -137,22 +137,18 @@ export default {
 		async saveTokenToServer(token) {
 			try {
 				await axios.post(
-					'/api/v1.1/push/update',
+					'/api/push/update',
 					{
 						token,
-						notify_enabled: true,
-						notify_like: this.user.notify_like ?? true,
-						notify_follow: this.user.notify_follow ?? true,
-						notify_mention: this.user.notify_mention ?? true,
-						notify_comment: this.user.notify_comment ?? true,
-						user: this.user
-					},
-					{
-						headers: {
-						'X-PIXELFED-APP': 'Pixelfed'
-						}
+						// notify_enabled: true, // or false
+						// notify_like: true,    // optional
+						// notify_follow: true,  // optional
+						// notify_mention: true,
+						// notify_comment: true,
 					}
-					);
+
+				);
+				alert('Token saved successfully.');
 			} catch (err) {
 				console.error('Error saving token:', err.response?.data || err.message);
 			}
