@@ -89,6 +89,7 @@ use League\Fractal;
 use League\Fractal\Serializer\ArraySerializer;
 use Purify;
 use Storage;
+use App\Services\NotificationAppGatewayService;
 
 class ApiV1Controller extends Controller
 {
@@ -3775,6 +3776,7 @@ class ApiV1Controller extends Controller
         if ($status->in_reply_to_id) {
             CommentPipeline::dispatch($parent, $status);
         }
+
         Cache::forget('user:account:id:'.$user->id);
         Cache::forget('_api:statuses:recent_9:'.$user->profile_id);
         Cache::forget('profile:status_count:'.$user->profile_id);

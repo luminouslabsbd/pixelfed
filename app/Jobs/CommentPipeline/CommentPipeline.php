@@ -5,10 +5,12 @@ namespace App\Jobs\CommentPipeline;
 use App\{
     Notification,
     Status,
-    UserFilter
+    UserFilter,
+    User
 };
 use App\Services\NotificationService;
 use App\Services\StatusService;
+use App\Services\NotificationAppGatewayService;
 use DB, Cache, Log;
 use Illuminate\Support\Facades\Redis;
 
@@ -103,6 +105,13 @@ class CommentPipeline implements ShouldQueue
 
                 NotificationService::setNotification($notification);
                 NotificationService::set($notification->profile_id, $notification->id);
+
+                $userInfo = User::where('profile_id',$notification->actor_id)->select('name','expo_token')->first();
+
+                if($userInfo && $userInfo->expo_token != null){
+                    NotificationAppGatewayService::send($userInfo->expo_token, 'comment', $userInfo->name );
+                }
+                
                 StatusService::del($comment->id);
             });
         }
