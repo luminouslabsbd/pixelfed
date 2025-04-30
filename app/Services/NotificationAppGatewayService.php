@@ -128,7 +128,6 @@ class NotificationAppGatewayService
             if (file_exists($jsonKeyPath)) {
                 $credentials = new ServiceAccountCredentials($scopes, $jsonKeyPath);
                 $authTokenArray = $credentials->fetchAuthToken();
-                Log::info( $authTokenArray);
                 return $authTokenArray['access_token'];
             }
             
@@ -150,14 +149,14 @@ class NotificationAppGatewayService
 
     public static function sendFcmNotification($userToken,$type, $actor )
     {
+    
+        $accessToken = self::getGoogleAccessToken();
+
         \Log::info($userToken);
         \Log::info($type);
         \Log::info($actor);
-
-        $accessToken = self::getGoogleAccessToken();
-
         \Log::info($accessToken);
-        
+
         if($accessToken){
             $response = Http::withToken($accessToken)
                 ->withHeaders([
