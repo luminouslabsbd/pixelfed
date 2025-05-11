@@ -87,7 +87,7 @@ export default {
 		// Register service worker
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker
-				.register('/firebase-messaging-sw.js')
+				.register('../../../../../public/firebase-messaging-sw.js')
 				.then((registration) => {
 					console.log('Service Worker registered:', registration);
 				})
@@ -138,7 +138,7 @@ export default {
 
 				const token = await getToken(this.messaging, {
 					vapidKey: process.env.VUE_APP_FIREBASE_VAPID_KEY,
-					serviceWorkerRegistration: navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js'),
+					serviceWorkerRegistration: navigator.serviceWorker.getRegistration('../../../../../public/firebase-messaging-sw.js'),
 				});
 				this.user = window._sharedData.user;
 
