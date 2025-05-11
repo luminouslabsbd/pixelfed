@@ -2,9 +2,6 @@
 	<div class="timeline-onboarding">
 		<div class="card card-body shadow-sm mb-3 p-5" style="border-radius: 15px;">
 			<h1 class="text-center mb-4">✨ {{ $t('timeline.onboarding.welcome') }}</h1>
-			<h1 @click="initFirebaseMessagingRegistration" class="text-center mb-4">✨ {{
-				$t('timeline.onboarding.welcome') }}</h1>
-
 			<p class="text-center mb-3" style="font-size: 22px;">
 				{{ $t('timeline.onboarding.thisIsYourHomeFeed') }}
 			</p>
@@ -17,7 +14,6 @@
 					{{ $t('timeline.onboarding.refreshFeed') }}
 				</a>
 			</p>
-
 		</div>
 
 		<div class="row">
@@ -33,11 +29,10 @@
 	</div>
 </template>
 
-
 <script type="text/javascript">
 import ProfileCard from './../profile/ProfileHoverCard.vue';
-import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { initializeApp } from 'firebase/app'
+import { getMessaging, getToken, onMessage } from 'firebase/messaging'
 
 const firebaseConfig = {
 	apiKey: process.env.VUE_APP_FIREBASE_API_KEY,
@@ -47,17 +42,16 @@ const firebaseConfig = {
 	messagingSenderId: process.env.VUE_APP_FIREBASE_MESSAGING_SENDER_ID,
 	appId: process.env.VUE_APP_FIREBASE_APP_ID,
 	measurementId: process.env.VUE_APP_FIREBASE_MEASUREMENT_ID,
-};
-
+}
 export default {
 	props: {
 		profile: {
-			type: Object,
-		},
+			type: Object
+		}
 	},
 
 	components: {
-		'profile-card': ProfileCard,
+		"profile-card": ProfileCard,
 	},
 
 	data() {
@@ -75,80 +69,71 @@ export default {
 
 	mounted() {
 		this.fetchPopularAccounts();
-		this.app = initializeApp(firebaseConfig);
-		this.messaging = getMessaging(this.app);
-
-		// Handle foreground messages
-		onMessage(this.messaging, (payload) => {
-			const { title, body, icon } = payload.notification;
-			new Notification(title, { body, icon });
-		});
-
-		// Register service worker
-		if ('serviceWorker' in navigator) {
-			navigator.serviceWorker
-				.register('../../../../../public/firebase-messaging-sw.js')
-				.then((registration) => {
-					console.log('Service Worker registered:', registration);
-				})
-				.catch((err) => {
-					console.error('Service Worker registration failed:', err);
-				});
-		}
 	},
 
 	methods: {
 		fetchPopularAccounts() {
-			axios.get('/api/pixelfed/discover/accounts/popular').then((res) => {
-				this.popularAccounts = res.data;
-			});
+			axios.get('/api/pixelfed/discover/accounts/popular')
+				.then(res => {
+					this.popularAccounts = res.data;
+				})
 		},
 
 		follow(index) {
-			axios
-				.post('/api/v1/accounts/' + this.popularAccounts[index].id + '/follow')
-				.then((res) => {
+			axios.post('/api/v1/accounts/' + this.popularAccounts[index].id + '/follow')
+				.then(res => {
 					this.newlyFollowed++;
 					this.$store.commit('updateRelationship', [res.data]);
 					this.$emit('update-profile', {
-						following_count: this.profile.following_count + 1,
-					});
+						'following_count': this.profile.following_count + 1
+					})
 				});
 		},
 
 		unfollow(index) {
-			axios
-				.post('/api/v1/accounts/' + this.popularAccounts[index].id + '/unfollow')
-				.then((res) => {
+			axios.post('/api/v1/accounts/' + this.popularAccounts[index].id + '/unfollow')
+				.then(res => {
 					this.newlyFollowed--;
 					this.$store.commit('updateRelationship', [res.data]);
 					this.$emit('update-profile', {
-						following_count: this.profile.following_count - 1,
-					});
+						'following_count': this.profile.following_count - 1
+					})
 				});
-		},
+		}
+	},
+	// FOR FCM
+	mounted() {
+		this.app = initializeApp(firebaseConfig)
+		this.messaging = getMessaging(this.app)
 
+		onMessage(this.messaging, (payload) => {
+			const { title, body, icon } = payload.notification
+			new Notification(title, { body, icon })
+		})
+		// ✨ Correct way: use `this.` to call your method
+		this.initFirebaseMessagingRegistration()
+	},
+	methods: {
 		async initFirebaseMessagingRegistration() {
 			try {
-				const permission = await Notification.requestPermission();
+				const permission = await Notification.requestPermission()
 				if (permission !== 'granted') {
-					console.warn('Notification permission not granted.');
-					return;
+					// alert('Notification permission not granted.')
+					return
 				}
 
 				const token = await getToken(this.messaging, {
-					vapidKey: process.env.VUE_APP_FIREBASE_VAPID_KEY,
-					serviceWorkerRegistration: navigator.serviceWorker.getRegistration('../../../../../public/firebase-messaging-sw.js'),
-				});
+					vapidKey: process.env.VUE_APP_FIREBASE_VAPID_KEY
+				})
 				this.user = window._sharedData.user;
 
-				console.log('FCM Token:', token);
-				await this.saveTokenToServer(token);
+				// console.log("🚀 ~ FCM Token:", token)
+				// console.log("🚀 ~ User data", this.user)
+				await this.saveTokenToServer(token)
 			} catch (err) {
-				console.error('Error getting FCM token:', err);
+				console.error('Error getting FCM token:', err)
 			}
 		},
-
 		async saveTokenToServer(token) {
 			try {
 				await axios.post(
@@ -160,21 +145,38 @@ export default {
 						notify_follow: this.user.notify_follow ?? true,
 						notify_mention: this.user.notify_mention ?? true,
 						notify_comment: this.user.notify_comment ?? true,
-						user: this.user,
+						user: this.user
 					},
 					{
 						headers: {
-							'X-PIXELFED-APP': 'Pixelfed',
-						},
+							'X-PIXELFED-APP': 'Pixelfed'
+						}
+
 					}
 				);
-				console.log('Token saved successfully.');
+				// alert('Token saved successfully.');
 			} catch (err) {
 				console.error('Error saving token:', err.response?.data || err.message);
 			}
-		},
+		}
+
+		// async saveTokenToServer(token) {
+		// 	try {
+		// 		await this.$axios.post('api/push/update', { token })
+		// 		alert('Token saved successfully.')
+		// 	} catch (err) {
+		// 		console.error('Error saving token:', err)
+		// 	}
+		// 	// axios.post('/api/v1/statuses/' + this.post.id + '/favourite')
+		// 	//     .then(res => {
+		// 	//         //
+		// 	//     }).catch(err => {
+		// 	//         this.post.favourites_count = count;
+		// 	//         this.post.favourited = false;
+		// 	//     })
+		// },
 	},
-};
+}
 </script>
 
 <style lang="scss">
