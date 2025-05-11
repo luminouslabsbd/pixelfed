@@ -1,4 +1,3 @@
-// firebase-messaging-sw.js
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
 );
@@ -27,8 +26,56 @@ messaging.onBackgroundMessage(function (payload) {
     const notificationTitle = payload.notification?.title || "New Notification";
     const notificationOptions = {
         body: payload.notification?.body,
-        icon: "/firebase-logo.png", // You can customize this path
+        icon: "/img/logo/pwa/192.png", // Use a valid icon from manifest
+        data: payload.data, // Include data for click handling
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
+
+// Handle generic push events
+self.addEventListener("push", function (event) {
+    console.log("[firebase-messaging-sw.js] Push event received:", event);
+    let data = {};
+    if (event.data) {
+        try {
+            data = event.data.json();
+        } catch (e) {
+            console.error("Error parsing push data:", e);
+        }
+    }
+
+    const notificationTitle = data.notification?.title || "New Notification";
+    const notificationOptions = {
+        body: data.notification?.body,
+        icon: "/img/logo/pwa/192.png",
+        data: data.data,
+    };
+
+    event.waitUntil(
+        self.registration.showNotification(
+            notificationTitle,
+            notificationOptions
+        )
+    );
+});
+
+// Handle notification clicks
+// self.addEventListener('notificationclick', function (event) {
+//   console.log('[firebase-messaging-sw.js] Notification clicked:', event);
+//   event.notification.close();
+
+//   const url = event.notification.data?.url || '/';
+//   event.waitUntil(
+//     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+//       for (const client of clientList) {
+//         if (client.url === url && 'focus' in client) {
+//           return client.focus();
+//         }
+//       }
+//       if (clients.openWindow) {
+//         return clients.openWindow(url);
+//       }
+//     })
+//   );
+// });
