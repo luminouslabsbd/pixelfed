@@ -2,11 +2,9 @@
 	<div class="timeline-onboarding">
 		<div class="card card-body shadow-sm mb-3 p-5" style="border-radius: 15px;">
 			<h1 class="text-center mb-4">✨ {{ $t('timeline.onboarding.welcome') }}</h1>
-			<div>
-				<!-- Add a button to trigger notification permission -->
-				<button @click="initFirebaseMessagingRegistration">Enable Notifications</button>
-				<!-- Rest of your template -->
-			</div>
+			<h1 @click="initFirebaseMessagingRegistration" class="text-center mb-4">✨ {{
+				$t('timeline.onboarding.welcome') }}</h1>
+
 			<p class="text-center mb-3" style="font-size: 22px;">
 				{{ $t('timeline.onboarding.thisIsYourHomeFeed') }}
 			</p>
