@@ -172,6 +172,7 @@ Route::group(['prefix' => 'api'], function () use ($middleware) {
 
         Route::get('statuses/{id}/history', 'StatusEditController@history')->middleware($middleware);
         Route::put('statuses/{id}', 'StatusEditController@store')->middleware($middleware);
+        Route::post('check-expo-token', 'Api\ApiV1Controller@checkExpoToken');
 
         Route::group(['prefix' => 'admin'], function () use ($middleware) {
             Route::get('domain_blocks', 'Api\V1\Admin\DomainBlocksController@index')->middleware($middleware);

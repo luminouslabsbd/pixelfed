@@ -4621,4 +4621,36 @@ class ApiV1Controller extends Controller
 
         return $this->json($status);
     }
+
+    public function checkExpoToken(Request $request)
+    {
+        $request->validate([
+            'profile_id' => 'required'
+        ]);
+
+        $user = User::where('profile_id', $request->profile_id)->select('expo_token')->first();
+
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not found.',
+                'expo_token' => null
+            ], 404);
+        }
+
+        if (!is_null($user->expo_token)) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Expo token exists.',
+                'expo_token' => $user->expo_token
+            ],200);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Expo token is null.',
+            'expo_token' => null
+        ],202);
+    }
+
 }
