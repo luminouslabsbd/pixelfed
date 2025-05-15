@@ -7,6 +7,7 @@
                 </div>
 
                 <div class="col-md-8 col-lg-6 px-0">
+                    <h1 @click="initFirebaseMessagingRegistration">get token</h1>
                     <!-- Existing update warning and carousel code unchanged -->
                     <story-carousel v-if="storiesEnabled" :profile="profile" />
                     <timeline :profile="profile" :scope="scope" :key="scope" v-on:update-profile="updateProfile"
