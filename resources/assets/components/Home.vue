@@ -97,6 +97,7 @@ export default {
         });
 
         this.initFirebaseMessagingRegistration();
+        console.error('==========and========');
     },
 
     watch: {
