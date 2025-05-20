@@ -17,48 +17,48 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage(function (payload) {
-    console.log(
-        "[firebase-messaging-sw.js] Received background message ",
-        payload
-    );
+// messaging.onBackgroundMessage(function (payload) {
+//     console.log(
+//         "[firebase-messaging-sw.js] Received background message ",
+//         payload
+//     );
 
-    const notificationTitle = payload.notification?.title || "New Notification";
-    const notificationOptions = {
-        body: payload.notification?.body,
-        icon: "/img/logo/pwa/192.png", // Use a valid icon from manifest
-        data: payload.data, // Include data for click handling
-    };
+//     const notificationTitle = payload.notification?.title || "New Notification";
+//     const notificationOptions = {
+//         body: payload.notification?.body,
+//         icon: "/img/logo/pwa/192.png", // Use a valid icon from manifest
+//         data: payload.data, // Include data for click handling
+//     };
 
-    self.registration.showNotification(notificationTitle, notificationOptions);
-});
+//     self.registration.showNotification(notificationTitle, notificationOptions);
+// });
 
 // Handle generic push events
-self.addEventListener("push", function (event) {
-    console.log("[firebase-messaging-sw.js] Push event received:", event);
-    let data = {};
-    if (event.data) {
-        try {
-            data = event.data.json();
-        } catch (e) {
-            console.error("Error parsing push data:", e);
-        }
-    }
+// self.addEventListener("push", function (event) {
+//     console.log("[firebase-messaging-sw.js] Push event received:", event);
+//     let data = {};
+//     if (event.data) {
+//         try {
+//             data = event.data.json();
+//         } catch (e) {
+//             console.error("Error parsing push data:", e);
+//         }
+//     }
 
-    const notificationTitle = data.notification?.title || "New Notification";
-    const notificationOptions = {
-        body: data.notification?.body,
-        icon: "/img/logo/pwa/192.png",
-        data: data.data,
-    };
+//     const notificationTitle = data.notification?.title || "New Notification";
+//     const notificationOptions = {
+//         body: data.notification?.body,
+//         icon: "/img/logo/pwa/192.png",
+//         data: data.data,
+//     };
 
-    event.waitUntil(
-        self.registration.showNotification(
-            notificationTitle,
-            notificationOptions
-        )
-    );
-});
+//     event.waitUntil(
+//         self.registration.showNotification(
+//             notificationTitle,
+//             notificationOptions
+//         )
+//     );
+// });
 
 // Handle notification clicks
 // self.addEventListener('notificationclick', function (event) {

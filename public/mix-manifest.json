@@ -29,7 +29,7 @@
     "/js/group-topic-feed.js": "/js/group-topic-feed.js",
     "/js/custom_filters.js": "/js/custom_filters.js",
     "/js/manifest.js": "/js/manifest.js",
-    "/js/home.chunk.4612b13e7974586c.js": "/js/home.chunk.4612b13e7974586c.js",
+    "/js/home.chunk.12cd73c7377fe7e7.js": "/js/home.chunk.12cd73c7377fe7e7.js",
     "/js/compose.chunk.6e628141f1f00d74.js": "/js/compose.chunk.6e628141f1f00d74.js",
     "/js/post.chunk.6448295263318dde.js": "/js/post.chunk.6448295263318dde.js",
     "/js/profile.chunk.20081dcc57f126d4.js": "/js/profile.chunk.20081dcc57f126d4.js",
@@ -64,10 +64,5 @@
     "/css/landing.css": "/css/landing.css",
     "/css/profile.css": "/css/profile.css",
     "/css/spa.css": "/css/spa.css",
-    "/js/vendor.js": "/js/vendor.js",
-    "/js/home.chunk.60fdd3214f2d89fd.js": "/js/home.chunk.60fdd3214f2d89fd.js",
-    "/js/home.chunk.c2e5276971570a18.js": "/js/home.chunk.c2e5276971570a18.js",
-    "/js/home.chunk.1edd8e2186c09f26.js": "/js/home.chunk.1edd8e2186c09f26.js",
-    "/js/home.chunk.1fa98895dfb3cc35.js": "/js/home.chunk.1fa98895dfb3cc35.js",
-    "/js/home.chunk.12cd73c7377fe7e7.js": "/js/home.chunk.12cd73c7377fe7e7.js"
+    "/js/vendor.js": "/js/vendor.js"
 }
