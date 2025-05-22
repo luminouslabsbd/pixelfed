@@ -103,9 +103,10 @@ class CommentPipeline implements ShouldQueue
                 $notification->item_type = "App\Status";
                 $notification->save();
 
-                $userInfo = User::where('profile_id',$actor->id)->select('username','expo_token')->first();
+                $userInfo = User::where('profile_id',$target->id)->select('expo_token')->first();
+                $actorName = User::where('profile_id',$actor->id)->select('username')->first();
                 if($userInfo && $userInfo->expo_token != null){
-                    NotificationAppGatewayService::send($userInfo->expo_token, 'comment', $userInfo->username);
+                    NotificationAppGatewayService::send($userInfo->expo_token, 'comment', $actorName->username);
                 }
                 
                 NotificationService::setNotification($notification);
