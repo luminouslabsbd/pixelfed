@@ -31,18 +31,7 @@
 
 <script type="text/javascript">
 import ProfileCard from './../profile/ProfileHoverCard.vue';
-import { initializeApp } from 'firebase/app'
-import { getMessaging, getToken, onMessage } from 'firebase/messaging'
 
-const firebaseConfig = {
-	apiKey: process.env.VUE_APP_FIREBASE_API_KEY,
-	authDomain: process.env.VUE_APP_FIREBASE_AUTH_DOMAIN,
-	projectId: process.env.VUE_APP_FIREBASE_PROJECT_ID,
-	storageBucket: process.env.VUE_APP_FIREBASE_STORAGE_BUCKET,
-	messagingSenderId: process.env.VUE_APP_FIREBASE_MESSAGING_SENDER_ID,
-	appId: process.env.VUE_APP_FIREBASE_APP_ID,
-	measurementId: process.env.VUE_APP_FIREBASE_MEASUREMENT_ID,
-}
 export default {
 	props: {
 		profile: {
@@ -101,81 +90,7 @@ export default {
 				});
 		}
 	},
-	// FOR FCM
-	mounted() {
-		this.app = initializeApp(firebaseConfig)
-		this.messaging = getMessaging(this.app)
 
-		onMessage(this.messaging, (payload) => {
-			const { title, body, icon } = payload.notification
-			new Notification(title, { body, icon })
-		})
-		// ✨ Correct way: use `this.` to call your method
-		this.initFirebaseMessagingRegistration()
-	},
-	methods: {
-		async initFirebaseMessagingRegistration() {
-			try {
-				const permission = await Notification.requestPermission()
-				if (permission !== 'granted') {
-					// alert('Notification permission not granted.')
-					return
-				}
-
-				const token = await getToken(this.messaging, {
-					vapidKey: process.env.VUE_APP_FIREBASE_VAPID_KEY
-				})
-				this.user = window._sharedData.user;
-
-				// console.log("🚀 ~ FCM Token:", token)
-				// console.log("🚀 ~ User data", this.user)
-				await this.saveTokenToServer(token)
-			} catch (err) {
-				console.error('Error getting FCM token:', err)
-			}
-		},
-		async saveTokenToServer(token) {
-			try {
-				await axios.post(
-					'/api/v1.1/push/update',
-					{
-						token,
-						notify_enabled: true,
-						notify_like: this.user.notify_like ?? true,
-						notify_follow: this.user.notify_follow ?? true,
-						notify_mention: this.user.notify_mention ?? true,
-						notify_comment: this.user.notify_comment ?? true,
-						user: this.user
-					},
-					{
-						headers: {
-							'X-PIXELFED-APP': 'Pixelfed'
-						}
-
-					}
-				);
-				// alert('Token saved successfully.');
-			} catch (err) {
-				console.error('Error saving token:', err.response?.data || err.message);
-			}
-		}
-
-		// async saveTokenToServer(token) {
-		// 	try {
-		// 		await this.$axios.post('api/push/update', { token })
-		// 		alert('Token saved successfully.')
-		// 	} catch (err) {
-		// 		console.error('Error saving token:', err)
-		// 	}
-		// 	// axios.post('/api/v1/statuses/' + this.post.id + '/favourite')
-		// 	//     .then(res => {
-		// 	//         //
-		// 	//     }).catch(err => {
-		// 	//         this.post.favourites_count = count;
-		// 	//         this.post.favourited = false;
-		// 	//     })
-		// },
-	},
 }
 </script>
 
