@@ -143,7 +143,7 @@ class NotificationAppGatewayService
             'mention' => "$actor mentioned you in a post.",
             'dm'      => "$actor sent you a direct message.",
         ];
-
+        \Log::info($type);
         return $messages[$type] ?? "$actor interacted with you.";
     }
 
