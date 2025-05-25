@@ -17,23 +17,23 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage(function (payload) {
-    console.log(
-        "[firebase-messaging-sw.js] Received background message",
-        payload
-    );
+// messaging.onBackgroundMessage(function (payload) {
+//     console.log(
+//         "[firebase-messaging-sw.js] Received background message",
+//         payload
+//     );
 
-    const notificationTitle = payload.notification?.title || "New Notification";
-    const notificationOptions = {
-        body: payload.notification?.body,
-        icon: "/img/logo/pwa/192.png",
-        data: {
-            url: payload.data?.url || "/", // pass custom URL for navigation
-        },
-    };
+//     const notificationTitle = payload.notification?.title || "New Notification";
+//     const notificationOptions = {
+//         body: payload.notification?.body,
+//         icon: "/img/logo/pwa/192.png",
+//         data: {
+//             url: payload.data?.url || "/", // pass custom URL for navigation
+//         },
+//     };
 
-    self.registration.showNotification(notificationTitle, notificationOptions);
-});
+//     self.registration.showNotification(notificationTitle, notificationOptions);
+// });
 
 // ✅ Handle notification click to open specific page
 self.addEventListener("notificationclick", function (event) {
