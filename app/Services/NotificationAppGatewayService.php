@@ -137,7 +137,7 @@ class NotificationAppGatewayService
         });
     }
 
-    public static function bodyTitleMake($type, $actor,$url)
+    public static function bodyTitleMake($type, $actor)
     {
         $messages = [
             'follow'  => "$actor followed your profile.",
@@ -147,7 +147,6 @@ class NotificationAppGatewayService
             'dm'      => "$actor sent you a direct message.",
         ];
         \Log::info($type);
-        $messages['url'] = $url;
         return $messages[$type] ?? "$actor interacted with you.";
     }
 
@@ -184,7 +183,8 @@ class NotificationAppGatewayService
                         'token' => $userToken,
                         'notification' => [
                             'title' => env('APP_NAME') ?? "Pixelfed",
-                            'body' => self::bodyTitleMake($type, $actor,$url) // Fixed string concatenation and grammar
+                            'body' => self::bodyTitleMake($type, $actor), // Fixed string concatenation and grammar
+                            'url' => $url
                         ],
                         'data' => [
                             'story_id' => 'story_12345',
