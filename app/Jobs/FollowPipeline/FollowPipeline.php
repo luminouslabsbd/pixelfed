@@ -92,7 +92,7 @@ class FollowPipeline implements ShouldQueue
                 if (PushNotificationService::check('follow', $target->id)) {
                     $user = User::whereProfileId($target->id)->first();
                     if ($user && $user->expo_token && $user->notify_enabled) {
-                        FollowPushNotifyPipeline::dispatch($user->expo_token, $actor->username)->onQueue('pushnotify');
+                        FollowPushNotifyPipeline::dispatch($user->expo_token, $actor->username ,$actor->username)->onQueue('pushnotify');
                     }
                 }
             }
