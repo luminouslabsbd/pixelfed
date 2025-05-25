@@ -61,21 +61,21 @@ const messaging = firebase.messaging();
 // });
 
 // Handle notification clicks
-// self.addEventListener('notificationclick', function (event) {
-//   console.log('[firebase-messaging-sw.js] Notification clicked:', event);
-//   event.notification.close();
-
-//   const url = event.notification.data?.url || '/';
-//   event.waitUntil(
-//     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-//       for (const client of clientList) {
-//         if (client.url === url && 'focus' in client) {
-//           return client.focus();
-//         }
-//       }
-//       if (clients.openWindow) {
-//         return clients.openWindow(url);
-//       }
-//     })
-//   );
-// });
+self.addEventListener('notificationclick', function (event) {
+  console.log('[firebase-messaging-sw.js] Notification clicked:', event);
+  event.notification.close();
+  console.log(event.notification);
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
+    })
+  );
+});
