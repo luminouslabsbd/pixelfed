@@ -33,11 +33,26 @@ messaging.onBackgroundMessage(function (payload) {
         const notificationOptions = {
             body: payload.data?.body || payload.data?.message,
             icon: "/img/logo/pwa/192.png",
+            badge: "/img/logo/pwa/192.png",
             data: {
                 url: payload.data?.url || "/",
+                // Preserve all data for click handling
+                ...payload.data,
             },
+            actions: [
+                {
+                    action: "open",
+                    title: "Open",
+                },
+            ],
+            requireInteraction: false,
+            silent: false,
         };
 
+        console.log(
+            "Showing custom notification with data:",
+            notificationOptions.data
+        );
         return self.registration.showNotification(
             notificationTitle,
             notificationOptions
@@ -45,28 +60,65 @@ messaging.onBackgroundMessage(function (payload) {
     }
 
     // If payload.notification exists, Firebase will auto-display it
-    // Just log it and let Firebase handle the display
-    console.log("Firebase will auto-display this notification");
+    // But we need to ensure the data is preserved for click handling
+    console.log(
+        "Firebase will auto-display this notification with data:",
+        payload.data
+    );
 });
 
 // Handle notification click
 self.addEventListener("notificationclick", function (event) {
     console.log("[firebase-messaging-sw.js] Notification clicked:", event);
+    console.log("Notification data:", event.notification.data);
+
     event.notification.close();
 
-    const urlToOpen = event.notification?.data?.url || "/";
+    // Get URL from notification data
+    let urlToOpen = "/";
+
+    if (event.notification.data && event.notification.data.url) {
+        urlToOpen = event.notification.data.url;
+    } else if (event.notification.data && event.notification.data.FCM_MSG) {
+        // Handle Firebase auto-generated notifications
+        const fcmData = event.notification.data.FCM_MSG;
+        if (fcmData.data && fcmData.data.url) {
+            urlToOpen = fcmData.data.url;
+        }
+    }
+
+    console.log("URL to open:", urlToOpen);
 
     event.waitUntil(
         clients
             .matchAll({ type: "window", includeUncontrolled: true })
             .then((clientList) => {
+                console.log("Found clients:", clientList.length);
+
+                // Try to focus existing tab with same origin
                 for (const client of clientList) {
-                    if (client.url === urlToOpen && "focus" in client) {
-                        return client.focus();
+                    console.log("Client URL:", client.url);
+                    if (
+                        client.url.includes(self.location.origin) &&
+                        "focus" in client
+                    ) {
+                        console.log("Focusing existing client and navigating");
+                        client.focus();
+                        // Navigate to the specific URL
+                        return client.postMessage({
+                            type: "NOTIFICATION_CLICK",
+                            url: urlToOpen,
+                        });
                     }
                 }
+
+                // Open new window if no existing client
+                console.log("Opening new window");
                 if (clients.openWindow) {
-                    return clients.openWindow(urlToOpen);
+                    const fullUrl = urlToOpen.startsWith("http")
+                        ? urlToOpen
+                        : self.location.origin + urlToOpen;
+                    return clients.openWindow(fullUrl);
                 }
             })
             .catch((err) => {
