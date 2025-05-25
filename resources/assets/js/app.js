@@ -64,7 +64,17 @@ window.addEventListener("load", () => {
         navigator.serviceWorker.register("/firebase-messaging-sw.js");
     }
 });
-
+// In your main app (not service worker)
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", function (event) {
+        if (event.data.type === "NOTIFICATION_CLICK") {
+            // Navigate to the URL
+            window.location.href = event.data.url;
+            // Or if using a router:
+            // router.push(event.data.url);
+        }
+    });
+}
 window.App.util = {
     compose: {
         post: function () {
