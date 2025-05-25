@@ -40,8 +40,8 @@ messaging.onBackgroundMessage(function (payload) {
 // ✅ Handle notification click to open specific page
 self.addEventListener("notificationclick", function (event) {
     console.log("[firebase-messaging-sw.js] Notification clicked:", event);
+    event.stopPropagation();
     event.notification.close();
-
     const urlToOpen = event.notification?.data?.url || "/";
 
     event.waitUntil(
