@@ -137,7 +137,7 @@ class NotificationAppGatewayService
         });
     }
 
-    public static function bodyTitleMake($type, $actor)
+    public static function bodyTitleMake($type, $actor,$url)
     {
         $messages = [
             'follow'  => "$actor followed your profile.",
@@ -147,6 +147,7 @@ class NotificationAppGatewayService
             'dm'      => "$actor sent you a direct message.",
         ];
         \Log::info($type);
+        $messages['url'] = $url;
         return $messages[$type] ?? "$actor interacted with you.";
     }
 
