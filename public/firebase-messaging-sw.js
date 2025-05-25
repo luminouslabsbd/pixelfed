@@ -17,21 +17,21 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// messaging.onBackgroundMessage(function (payload) {
-//     console.log(
-//         "[firebase-messaging-sw.js] Received background message ",
-//         payload
-//     );
+messaging.onBackgroundMessage(function (payload) {
+    console.log(
+        "[firebase-messaging-sw.js] Received background message ",
+        payload
+    );
+    
+    const notificationTitle = payload.notification?.title || "New Notification";
+    const notificationOptions = {
+        body: payload.notification?.body,
+        icon: "/img/logo/pwa/192.png", // Use a valid icon from manifest
+        data: payload.data, // Include data for click handling
+    };
 
-//     const notificationTitle = payload.notification?.title || "New Notification";
-//     const notificationOptions = {
-//         body: payload.notification?.body,
-//         icon: "/img/logo/pwa/192.png", // Use a valid icon from manifest
-//         data: payload.data, // Include data for click handling
-//     };
-
-//     self.registration.showNotification(notificationTitle, notificationOptions);
-// });
+    self.registration.showNotification(notificationTitle, notificationOptions);
+});
 
 // Handle generic push events
 // self.addEventListener("push", function (event) {
