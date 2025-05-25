@@ -61,7 +61,7 @@ window.App.boot = function () {
 window.addEventListener("load", () => {
     if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("/sw.js");
-        navigator.serviceWorker.register("/firebase-messaging-sw.js");
+        // navigator.serviceWorker.register("/firebase-messaging-sw.js");
     }
 });
 
