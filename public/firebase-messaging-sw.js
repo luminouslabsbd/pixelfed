@@ -32,33 +32,33 @@ messaging.onBackgroundMessage(function (payload) {
         },
     };
 
-    self.registration.showNotification(notificationTitle, notificationOptions);
+    // self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // ✅ Handle notification click to open specific page
-// self.addEventListener("notificationclick", function (event) {
-//     console.log("[firebase-messaging-sw.js] Notification clicked:", event);
-//     event.notification.close();
+self.addEventListener("notificationclick", function (event) {
+    console.log("[firebase-messaging-sw.js] Notification clicked:", event);
+    event.notification.close();
 
-//     const urlToOpen = event.notification?.data?.url || "/";
+    const urlToOpen = event.notification?.data?.url || "/";
 
-//     event.waitUntil(
-//         clients
-//             .matchAll({ type: "window", includeUncontrolled: true })
-//             .then((clientList) => {
-//                 for (const client of clientList) {
-//                     // Focus if already open
-//                     if (client.url === urlToOpen && "focus" in client) {
-//                         return client.focus();
-//                     }
-//                 }
-//                 // Open new tab if not open
-//                 if (clients.openWindow) {
-//                     return clients.openWindow(urlToOpen);
-//                 }
-//             })
-//             .catch((err) => {
-//                 console.error("Error handling notification click:", err);
-//             })
-//     );
-// });
+    event.waitUntil(
+        clients
+            .matchAll({ type: "window", includeUncontrolled: true })
+            .then((clientList) => {
+                for (const client of clientList) {
+                    // Focus if already open
+                    if (client.url === urlToOpen && "focus" in client) {
+                        return client.focus();
+                    }
+                }
+                // Open new tab if not open
+                if (clients.openWindow) {
+                    return clients.openWindow(urlToOpen);
+                }
+            })
+            .catch((err) => {
+                console.error("Error handling notification click:", err);
+            })
+    );
+});
