@@ -1,3 +1,5 @@
+// Firebase Service Worker - Push Notifications Handler
+// Import Firebase scripts
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
 );
@@ -5,126 +7,103 @@ importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js"
 );
 
+// Initialize Firebase with configuration
 firebase.initializeApp({
     apiKey: "AIzaSyCxKyv-Xh5R7iStYT9-MD7mdgb4rc3p3z0",
     authDomain: "pixelfed-38904.firebaseapp.com",
     projectId: "pixelfed-38904",
-    storageBucket: "pixelfed-38904.appspot.com", // fixed typo from 'firebaseStorage.app'
+    storageBucket: "pixelfed-38904.appspot.com",
     messagingSenderId: "1080382857079",
     appId: "1:1080382857079:web:412638d701febb0c034b72",
     measurementId: "G-PTH81EBDG4",
 });
 
+// Initialize Firebase Messaging
 const messaging = firebase.messaging();
 
-// Set a global variable to track if we've already shown a notification for a message
-// This helps prevent duplicate notifications
-const processedNotifications = new Set();
-
+// Handle background messages when app is not in focus
 messaging.onBackgroundMessage(function (payload) {
     console.log(
-        "[firebase-messaging-sw.js] Received background message",
+        "[firebase-messaging-sw.js] Received background message:",
         payload
     );
 
-    // Generate a unique ID for this notification
-    const notificationId = payload.data?.id || `notification-${Date.now()}`;
-    
-    // Check if we've already processed this notification
-    if (processedNotifications.has(notificationId)) {
-        console.log("[firebase-messaging-sw.js] Skipping duplicate notification:", notificationId);
-        return;
-    }
-    
-    // Mark this notification as processed
-    processedNotifications.add(notificationId);
-    
-    // Clean up old notification IDs (keep only last 50)
-    if (processedNotifications.size > 50) {
-        const iterator = processedNotifications.values();
-        processedNotifications.delete(iterator.next().value);
-    }
-
-    // Extract notification details from payload
+    // Extract notification data with fallbacks
     const notificationTitle = payload.notification?.title || "New Notification";
-    const notificationBody = payload.notification?.body || "";
-    
-    // Ensure we have a valid URL for navigation
-    const targetUrl = payload.data?.url || "/";
-    
-    // Create notification options with consistent data structure
     const notificationOptions = {
-        body: notificationBody,
+        body: payload.notification?.body || "You have a new message",
         icon: "/img/logo/pwa/192.png",
-        badge: "/img/logo/pwa/48.png",
-        tag: notificationId, // Use tag to replace existing notifications with same ID
+        badge: "/img/logo/pwa/96.png", // Small monochrome icon for status bar
+        tag: "notification-tag", // Prevents duplicate notifications
+        requireInteraction: false, // Auto-dismiss after a few seconds
         data: {
-            url: targetUrl,
+            url: payload.data?.url || "/",
             timestamp: Date.now(),
-            id: notificationId
+            ...payload.data, // Include any additional custom data
         },
-        // Add actions if needed
         actions: [
             {
-                action: 'view',
-                title: 'View'
-            }
+                action: "view",
+                title: "View",
+                icon: "/img/icons/view.png",
+            },
+            {
+                action: "dismiss",
+                title: "Dismiss",
+                icon: "/img/icons/close.png",
+            },
         ],
-        // Ensure notification is shown with high priority
-        requireInteraction: true,
-        vibrate: [200, 100, 200]
     };
 
-    console.log("[firebase-messaging-sw.js] Showing notification with options:", notificationOptions);
-    
     // Show the notification
-    return self.registration.showNotification(notificationTitle, notificationOptions);
+    return self.registration.showNotification(
+        notificationTitle,
+        notificationOptions
+    );
 });
 
-// Handle notification clicks (both direct clicks and action button clicks)
+// Handle notification click events
 self.addEventListener("notificationclick", function (event) {
     console.log("[firebase-messaging-sw.js] Notification clicked:", event);
-    
-    // Always close the notification when clicked
+
+    // Close the notification
     event.notification.close();
 
-    // Extract the URL from the notification data
-    const urlToOpen = new URL(
-        event.notification.data?.url || "/",
-        self.location.origin
-    ).href;
+    // Handle different actions
+    if (event.action === "dismiss") {
+        console.log("Notification dismissed");
+        return;
+    }
 
-    console.log("[firebase-messaging-sw.js] Navigating to URL:", urlToOpen);
+    // Get the URL to open (default action or 'view' action)
+    const urlToOpen = event.notification?.data?.url || "/";
+    const baseUrl = self.location.origin;
+    const fullUrl = urlToOpen.startsWith("http")
+        ? urlToOpen
+        : baseUrl + urlToOpen;
 
+    // Handle the click event
     event.waitUntil(
         clients
-            .matchAll({ 
-                type: "window", 
-                includeUncontrolled: true 
+            .matchAll({
+                type: "window",
+                includeUncontrolled: true,
             })
             .then((clientList) => {
-                // Check if a window client is already open
+                // Check if the target page is already open
                 for (const client of clientList) {
-                    const clientUrl = new URL(client.url);
-                    const targetUrl = new URL(urlToOpen);
-                    
-                    // Compare origins and paths for more accurate matching
-                    if (clientUrl.origin === targetUrl.origin && 
-                        clientUrl.pathname === targetUrl.pathname && 
-                        "focus" in client) {
+                    if (client.url === fullUrl && "focus" in client) {
                         return client.focus();
                     }
                 }
-                
-                // If no matching client found, open a new window
-                return clients.openWindow(urlToOpen).then(client => {
-                    if (client) {
-                        return client.focus();
-                    }
-                });
+
+                // If no matching client found, open new window/tab
+                if (clients.openWindow) {
+                    return clients.openWindow(fullUrl);
+                }
             })
-            .catch((err) => {
-                console.error("Error handling notification click:", err);
+            .catch((error) => {
+                console.error("Error handling notification click:", error);
             })
     );
 });

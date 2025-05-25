@@ -60,46 +60,8 @@ window.App.boot = function () {
 
 window.addEventListener("load", () => {
     if ("serviceWorker" in navigator) {
-        // First check if we already have an active service worker
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-            // Unregister any existing service workers to prevent duplicates
-            registrations.forEach(registration => {
-                // Keep track of which service workers we've seen
-                console.log('Found existing service worker with scope:', registration.scope);
-            });
-            
-            // Register the general service worker for offline functionality
-            navigator.serviceWorker.register("/sw.js", { 
-                scope: '/',
-                updateViaCache: 'none' // Don't use cached version
-            }).then(registration => {
-                console.log('General service worker registered with scope:', registration.scope);
-            }).catch(error => {
-                console.error('General service worker registration failed:', error);
-            });
-            
-            // Register Firebase service worker for push notifications with a different scope
-            navigator.serviceWorker.register("/firebase-messaging-sw.js", { 
-                scope: '/notifications/',
-                updateViaCache: 'none' // Don't use cached version
-            }).then(registration => {
-                console.log('Firebase messaging service worker registered with scope:', registration.scope);
-                
-                // You can initialize Firebase messaging here if needed
-                try {
-                    // Check if Firebase messaging is supported
-                    if (firebase.messaging.isSupported()) {
-                        const messaging = firebase.messaging();
-                        messaging.useServiceWorker(registration);
-                        console.log('Firebase messaging initialized with service worker');
-                    }
-                } catch (e) {
-                    console.error('Error initializing Firebase messaging:', e);
-                }
-            }).catch(error => {
-                console.error('Firebase messaging service worker registration failed:', error);
-            });
-        });
+        navigator.serviceWorker.register("/sw.js");
+        navigator.serviceWorker.register("/firebase-messaging-sw.js");
     }
 });
 
