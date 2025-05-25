@@ -184,9 +184,9 @@ class NotificationAppGatewayService
                         'notification' => [
                             'title' => env('APP_NAME') ?? "Pixelfed",
                             'body' => self::bodyTitleMake($type, $actor), // Fixed string concatenation and grammar
-                            'url' => $url
                         ],
                         'data' => [
+                            'url' => $url,
                             'story_id' => 'story_12345',
                         ],
                     ],
