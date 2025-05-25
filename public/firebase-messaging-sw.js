@@ -64,18 +64,46 @@ messaging.onBackgroundMessage(function (payload) {
 self.addEventListener('notificationclick', function (event) {
   console.log('[firebase-messaging-sw.js] Notification clicked:', event);
   event.notification.close();
-  console.log(event.notification);
-  const url = event.notification.data?.url || '/';
+  
+  // Log the full notification and data objects for debugging
+  console.log('Notification object:', event.notification);
+  console.log('Notification data:', event.notification.data);
+  
+  // Extract URL from notification data with better fallback handling
+  let url = '/';
+  
+  try {
+    // First try to get the URL from the notification data
+    if (event.notification.data && event.notification.data.url) {
+      url = event.notification.data.url;
+      console.log('URL from notification data:', url);
+    } 
+    // If that fails, try to get it from FCM payload format
+    else if (event.notification.data && event.notification.data.FCM_MSG && event.notification.data.FCM_MSG.data) {
+      url = event.notification.data.FCM_MSG.data.url || '/';
+      console.log('URL from FCM_MSG:', url);
+    }
+  } catch (error) {
+    console.error('Error extracting URL from notification:', error);
+  }
+  
+  console.log('Final URL to open:', url);
+  
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Check if there's already a window open with this URL
       for (const client of clientList) {
         if (client.url === url && 'focus' in client) {
           return client.focus();
         }
       }
+      
+      // If no existing window found, open a new one
       if (clients.openWindow) {
         return clients.openWindow(url);
       }
+    }).catch(error => {
+      console.error('Error handling notification click:', error);
     })
   );
 });
