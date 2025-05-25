@@ -15,13 +15,16 @@ class MentionPushNotifyPipeline implements ShouldQueue
 
     public $actor;
 
+    public $statusId;
+
     /**
      * Create a new job instance.
      */
-    public function __construct($pushToken, $actor)
+    public function __construct($pushToken, $actor,$statusId)
     {
         $this->pushToken = $pushToken;
         $this->actor = $actor;
+        $this->statusId = $statusId;
     }
 
     /**
@@ -30,7 +33,7 @@ class MentionPushNotifyPipeline implements ShouldQueue
     public function handle(): void
     {
         try {
-            NotificationAppGatewayService::send($this->pushToken, 'mention', $this->actor);
+            NotificationAppGatewayService::send($this->pushToken, 'mention', $this->actor,$this->statusId);
         } catch (Exception $e) {
             return;
         }

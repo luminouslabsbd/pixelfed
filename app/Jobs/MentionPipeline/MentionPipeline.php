@@ -80,7 +80,7 @@ class MentionPipeline implements ShouldQueue
             if (PushNotificationService::check('mention', $target)) {
                 $user = User::whereProfileId($target)->first();
                 if ($user && $user->expo_token && $user->notify_enabled) {
-                    MentionPushNotifyPipeline::dispatch($user->expo_token, $actor->username)->onQueue('pushnotify');
+                    MentionPushNotifyPipeline::dispatch($user->expo_token, $actor->username , $status->id)->onQueue('pushnotify');
                 }
             }
         }

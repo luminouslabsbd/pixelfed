@@ -101,7 +101,7 @@ class NotificationAppGatewayService
         return true;
     }
 
-    public static function send($userToken, $type, $actor = '')
+    public static function send($userToken, $type, $actor = '', $value = '')
     {
         if (! self::enabled()) {
             return false;
@@ -109,14 +109,11 @@ class NotificationAppGatewayService
 
         if (! $userToken || empty($userToken)) {
             return false;
-        }   
+        }
 
-        // $types = PushNotificationService::NOTIFY_TYPES;
-        // if (! $type || empty($type) || ! in_array($type, $types)) {
-        //     return false;
-        // }
+        $url = self::makeNotificationUrl($type ,$value);
         
-        self::sendFcmNotification($userToken , $type, $actor);
+        self::sendFcmNotification($userToken , $type, $actor, $url );
         
     }
 
@@ -147,11 +144,29 @@ class NotificationAppGatewayService
         return $messages[$type] ?? "$actor interacted with you.";
     }
 
+    public static function makeNotificationUrl($type, $dynamicValue = null)
+    {
+        $dynamicUrl = null;
+
+        if (in_array($type, ['like', 'comment', 'mention']) && $dynamicValue) {
+            $dynamicUrl = url("i/web/post/{$dynamicValue}");
+        }elseif ($type === 'dm' && $dynamicValue) {
+            $dynamicUrl = url("i/web/direct/thread/{$dynamicValue}");
+        }elseif ($type === 'follow' && $dynamicValue) {
+            // $dynamicValue here is treated as the username
+            $dynamicUrl = url($dynamicValue);
+        }else{
+            $dynamicUrl = url();
+        }
+
+        return $dynamicUrl;
+    }
+
     public static function sendFcmNotification($userToken,$type, $actor )
     {
-    
+       
         $accessToken = self::getGoogleAccessToken();
-
+        
         if($accessToken){
             $response = Http::withToken($accessToken)
                 ->withHeaders([
@@ -162,7 +177,7 @@ class NotificationAppGatewayService
                         'token' => $userToken,
                         'notification' => [
                             'title' => env('APP_NAME') ?? "Pixelfed",
-                            'body' => self::bodyTitleMake($type, $actor) // Fixed string concatenation and grammar
+                            'body' => self::bodyTitleMake($type, $actor,$url) // Fixed string concatenation and grammar
                         ],
                         'data' => [
                             'story_id' => 'story_12345',

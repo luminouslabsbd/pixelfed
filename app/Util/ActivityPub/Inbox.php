@@ -543,7 +543,7 @@ class Inbox
                 if (PushNotificationService::check('mention', $profile->id)) {
                     $user = User::whereProfileId($profile->id)->first();
                     if ($user && $user->expo_token && $user->notify_enabled) {
-                        MentionPushNotifyPipeline::dispatch($user->expo_token, $actor->username)->onQueue('pushnotify');
+                        MentionPushNotifyPipeline::dispatch($user->expo_token, $actor->username ,$actor->id)->onQueue('pushnotify');
                     }
                 }
             }

@@ -95,6 +95,7 @@ class CommentPipeline implements ShouldQueue
 
         if($target->user_id && $target->domain === null) {
             DB::transaction(function() use($target, $actor, $comment) {
+
                 $notification = new Notification();
                 $notification->profile_id = $target->id;
                 $notification->actor_id = $actor->id;
@@ -105,8 +106,9 @@ class CommentPipeline implements ShouldQueue
 
                 $userInfo = User::where('profile_id',$target->id)->select('expo_token')->first();
                 $actorName = User::where('profile_id',$actor->id)->select('username')->first();
+
                 if($userInfo && $userInfo->expo_token != null){
-                    NotificationAppGatewayService::send($userInfo->expo_token, 'comment', $actorName->username);
+                    NotificationAppGatewayService::send($userInfo->expo_token, 'comment', $actorName->username , $comment->id);
                 }
                 
                 NotificationService::setNotification($notification);
