@@ -48,16 +48,16 @@ self.addEventListener("notificationclick", function (event) {
         clients
             .matchAll({ type: "window", includeUncontrolled: true })
             .then((clientList) => {
-                for (const client of clientList) {
-                    // Focus if already open
-                    if (client.url === urlToOpen && "focus" in client) {
-                        return client.focus();
-                    }
-                }
-                // Open new tab if not open
-                if (clients.openWindow) {
-                    return clients.openWindow(urlToOpen);
-                }
+                // for (const client of clientList) {
+                //     // Focus if already open
+                //     if (client.url === urlToOpen && "focus" in client) {
+                //         return client.focus();
+                //     }
+                // }
+                // // Open new tab if not open
+                // if (clients.openWindow) {
+                //     return clients.openWindow(urlToOpen);
+                // }
             })
             .catch((err) => {
                 console.error("Error handling notification click:", err);
