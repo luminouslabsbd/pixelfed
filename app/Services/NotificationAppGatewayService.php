@@ -112,7 +112,13 @@ class NotificationAppGatewayService
         }
 
         $url = self::makeNotificationUrl($type ,$value);
-        
+
+        \Log::info($userToken );
+        \Log::info($type );
+        \Log::info($actor );
+        \Log::info($url );
+        \Log::info($value );
+
         self::sendFcmNotification($userToken , $type, $actor, $url );
         
     }
@@ -162,7 +168,7 @@ class NotificationAppGatewayService
         return $dynamicUrl;
     }
 
-    public static function sendFcmNotification($userToken,$type, $actor )
+    public static function sendFcmNotification($userToken,$type, $actor ,$url)
     {
        
         $accessToken = self::getGoogleAccessToken();
