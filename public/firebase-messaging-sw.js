@@ -17,52 +17,21 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Keep track of notification IDs we've already shown
-const shownNotifications = new Set();
-
 messaging.onBackgroundMessage(function (payload) {
     console.log(
         "[firebase-messaging-sw.js] Received background message",
         payload
     );
 
-    // Extract notification ID from payload
-    const notificationId = payload.data?.notification_id || null;
-    
-    // Check if we've already shown this notification
-    if (notificationId && shownNotifications.has(notificationId)) {
-        console.log(`[firebase-messaging-sw.js] Skipping duplicate notification: ${notificationId}`);
-        return;
-    }
-    
-    // If we have an ID, remember that we've shown this notification
-    if (notificationId) {
-        shownNotifications.add(notificationId);
-        
-        // Clean up old notifications (keep only the last 50)
-        if (shownNotifications.size > 50) {
-            const iterator = shownNotifications.values();
-            shownNotifications.delete(iterator.next().value);
-        }
-    }
-
     const notificationTitle = payload.notification?.title || "New Notification";
     const notificationOptions = {
         body: payload.notification?.body,
         icon: "/img/logo/pwa/192.png",
-        // Use the notification ID from the server if available, otherwise generate one
-        tag: payload.notification?.tag || payload.data?.notification_id || `notification-${Date.now()}`,
-        badge: "/img/logo/pwa/192.png",
-        vibrate: [100, 50, 100],
+        tag: "notification-tag", // Prevents duplicate notifications
+        // vibrate: [100, 50, 100], // Vibration pattern
         data: {
-            url: payload.data?.url || "/",
-            type: payload.data?.type,
-            actor: payload.data?.actor,
-            timestamp: payload.data?.timestamp || Date.now()
+            url: payload.data?.url || "/", // pass custom URL for navigation
         },
-        // Ensure notification is shown immediately
-        requireInteraction: true,
-        renotify: false
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);

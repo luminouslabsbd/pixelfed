@@ -81,11 +81,9 @@ export default {
         }
         this.app = initializeApp(firebaseConfig);
         this.messaging = getMessaging(this.app);
-        // Don't create a new notification here, as the service worker will handle it
         onMessage(this.messaging, (payload) => {
-            console.log('Foreground message received, letting service worker handle it:', payload);
-            // We don't create a new notification here anymore
-            // The service worker will handle showing the notification
+            const { title, body, icon } = payload.notification;
+            new Notification(title, { body, icon });
         });
         this.initFirebaseMessagingRegistration();
     },

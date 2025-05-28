@@ -168,14 +168,12 @@ class NotificationAppGatewayService
         return $dynamicUrl;
     }
 
-    public static function sendFcmNotification($userToken, $type, $actor, $url)
+    public static function sendFcmNotification($userToken,$type, $actor ,$url)
     {
+       
         $accessToken = self::getGoogleAccessToken();
         
         if($accessToken){
-            // Create a unique notification ID based on the type and URL to prevent duplicates
-            $notificationId = md5($type . $url . time());
-            
             $response = Http::withToken($accessToken)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
@@ -185,32 +183,19 @@ class NotificationAppGatewayService
                         'token' => $userToken,
                         'notification' => [
                             'title' => env('APP_NAME') ?? "Pixelfed",
-                            'body' => self::bodyTitleMake($type, $actor),
-                            'tag' => $notificationId, // Add tag to prevent duplicate notifications
+                            'body' => self::bodyTitleMake($type, $actor), // Fixed string concatenation and grammar
                         ],
                         'data' => [
                             'url' => $url,
-                            'notification_id' => $notificationId,
-                            'type' => $type,
-                            'actor' => $actor,
-                            'timestamp' => time(),
-                        ],
-                        // Set high priority for the notification
-                        'android' => [
-                            'priority' => 'high',
-                        ],
-                        'apns' => [
-                            'headers' => [
-                                'apns-priority' => '10',
-                            ],
+                            'story_id' => 'story_12345',
                         ],
                     ],
                 ]);
-                
-            \Log::info('FCM Notification sent with ID: ' . $notificationId);
             \Log::info($response->json());
             return $response->json();
         }
+
+        
     }
 
     // public static function send($userToken, $type, $actor = '')

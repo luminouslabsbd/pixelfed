@@ -60,7 +60,7 @@ window.App.boot = function () {
 
 window.addEventListener("load", () => {
     if ("serviceWorker" in navigator) {
-        // Only register the Firebase messaging service worker for notifications
+        navigator.serviceWorker.register("/sw.js");
         navigator.serviceWorker.register("/firebase-messaging-sw.js");
     }
 });
