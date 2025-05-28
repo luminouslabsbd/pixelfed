@@ -27,10 +27,12 @@ messaging.onBackgroundMessage(function (payload) {
     const notificationOptions = {
         body: payload.notification?.body,
         icon: "/img/logo/pwa/192.png",
-        tag: "notification-tag", // Prevents duplicate notifications
-        // vibrate: [100, 50, 100], // Vibration pattern
+        tag: payload.data?.url ? `notification-${payload.data.url}` : `notification-${Date.now()}`, // More specific tag to prevent duplicates
+        badge: "/img/logo/pwa/192.png", // Add badge for notification tray
+        vibrate: [100, 50, 100], // Vibration pattern
         data: {
             url: payload.data?.url || "/", // pass custom URL for navigation
+            timestamp: Date.now()
         },
     };
 
