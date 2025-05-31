@@ -61,77 +61,127 @@ window.App.boot = function () {
 window.addEventListener("load", () => {
     if ("serviceWorker" in navigator) {
         // Register the main service worker
-        navigator.serviceWorker.register("/sw.js").then(registration => {
-            // Check for updates periodically
-            setInterval(() => {
-                registration.update();
-            }, 60 * 60 * 1000); // Check for updates every hour
-        });
-        
+        navigator.serviceWorker
+            .register("/sw.js")
+            .then((registration) => {
+                console.log(
+                    "Main Service Worker registered with scope:",
+                    registration.scope
+                );
+                // Check for updates periodically
+                setInterval(() => {
+                    registration.update();
+                }, 60 * 60 * 1000); // Check for updates every hour
+            })
+            .catch((error) => {
+                console.error(
+                    "Main Service Worker registration failed:",
+                    error
+                );
+            });
+
         // Register the Firebase service worker
-        navigator.serviceWorker.register("/firebase-messaging-sw.js").then(registration => {
-            console.log('Firebase Service Worker registered with scope:', registration.scope);
-            
-            // Check for updates periodically
-            setInterval(() => {
-                registration.update();
-            }, 60 * 60 * 1000); // Check for updates every hour
-        }).catch(error => {
-            console.error('Firebase Service Worker registration failed:', error);
-        });
-        
+        navigator.serviceWorker
+            .register("/firebase-messaging-sw.js")
+            .then((registration) => {
+                console.log(
+                    "Firebase Service Worker registered with scope:",
+                    registration.scope
+                );
+                // Check for updates periodically
+                setInterval(() => {
+                    registration.update();
+                }, 60 * 60 * 1000); // Check for updates every hour
+            })
+            .catch((error) => {
+                console.error(
+                    "Firebase Service Worker registration failed:",
+                    error
+                );
+            });
+
         // Listen for messages from service worker
-        navigator.serviceWorker.addEventListener('message', event => {
-            if (event.data && event.data.type === 'SW_UPDATED') {
-                console.log(`Service Worker updated to version ${event.data.version}`);
-                
-                // Show update notification to user
-                showUpdateNotification(event.data.version);
+        navigator.serviceWorker.addEventListener("message", (event) => {
+            if (event.data && event.data.type === "SW_UPDATE_AVAILABLE") {
+                console.log(
+                    `New Service Worker version ${event.data.version} is available`
+                );
+                // Show a prompt to the user to apply the update
+                showUpdatePrompt(event.data.version);
             }
         });
     }
 });
 
-// Function to show update notification to user
-function showUpdateNotification(version) {
-    // Check if we've already shown this notification
-    const lastNotifiedVersion = localStorage.getItem('lastNotifiedVersion');
+// Function to show update prompt to user
+function showUpdatePrompt(version) {
+    // Check if we've already shown this prompt for the current version
+    const lastNotifiedVersion = localStorage.getItem("lastNotifiedVersion");
     if (lastNotifiedVersion === version) {
-        return; // Already notified for this version
+        return; // Already prompted for this version
     }
-    
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = 'update-notification';
-    notification.innerHTML = `
+
+    // Create prompt element
+    const prompt = document.createElement("div");
+    prompt.className = "update-prompt";
+    prompt.innerHTML = `
         <div class="alert alert-info alert-dismissible fade show" role="alert">
-            <strong>App Updated!</strong> Pixelfed has been updated to version ${version}.
+            <strong>New Version Available!</strong> Pixelfed version ${version} is ready.
+            <button type="button" class="btn btn-primary btn-sm ml-2" onclick="applyServiceWorkerUpdate()">Update Now</button>
             <button type="button" class="close" data-dismiss="alert" aria-label="Close">
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
     `;
-    
+
     // Add to DOM
-    document.body.appendChild(notification);
-    
-    // Save that we've shown this notification
-    localStorage.setItem('lastNotifiedVersion', version);
-    
+    document.body.appendChild(prompt);
+
+    // Save that we've shown this prompt
+    localStorage.setItem("lastNotifiedVersion", version);
+
     // Add styles if not already present
-    if (!document.getElementById('update-notification-styles')) {
-        const style = document.createElement('style');
-        style.id = 'update-notification-styles';
+    if (!document.getElementById("update-prompt-styles")) {
+        const style = document.createElement("style");
+        style.id = "update-prompt-styles";
         style.textContent = `
-            .update-notification {
+            .update-prompt {
                 position: fixed;
                 bottom: 20px;
                 right: 20px;
                 z-index: 9999;
                 max-width: 400px;
             }
+            .update-prompt .alert {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .update-prompt .btn {
+                margin-left: auto;
+            }
         `;
         document.head.appendChild(style);
+    }
+}
+
+// Function to apply the service worker update
+function applyServiceWorkerUpdate() {
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+            .getRegistration("/firebase-messaging-sw.js")
+            .then((registration) => {
+                if (registration.waiting) {
+                    // Send SKIP_WAITING message to activate the waiting service worker
+                    registration.waiting.postMessage({ type: "SKIP_WAITING" });
+                }
+            })
+            .catch((error) => {
+                console.error("Error applying service worker update:", error);
+            });
+
+        // Reload the page to apply the new service worker
+        window.location.reload();
     }
 }
 

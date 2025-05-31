@@ -1,5 +1,5 @@
 // Service worker version - increment this when making important changes
-const SW_VERSION = '1.0.0';
+const SW_VERSION = "1.0.0";
 
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
@@ -8,25 +8,23 @@ importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js"
 );
 
-// Force immediate update when a new service worker is available
-self.addEventListener('install', event => {
+// Install event: Do NOT call skipWaiting()
+self.addEventListener("install", (event) => {
     console.log(`[Service Worker] Installing new version ${SW_VERSION}`);
-    self.skipWaiting(); // Forces the waiting service worker to become the active service worker
+    // Remove self.skipWaiting() to prevent immediate activation
+    // Let the service worker stay in the "waiting" state
 });
 
-// When the service worker is activated (after skipWaiting)
-self.addEventListener('activate', event => {
+// Activate event: Do NOT call clients.claim()
+self.addEventListener("activate", (event) => {
     console.log(`[Service Worker] Activated new version ${SW_VERSION}`);
-    // Take control of all clients immediately
-    event.waitUntil(clients.claim());
-    
-    // Notify all open windows about the update
+    // Notify clients about the new service worker without forcing control
     event.waitUntil(
-        clients.matchAll({type: 'window'}).then(clientList => {
-            clientList.forEach(client => {
+        clients.matchAll({ type: "window" }).then((clientList) => {
+            clientList.forEach((client) => {
                 client.postMessage({
-                    type: 'SW_UPDATED',
-                    version: SW_VERSION
+                    type: "SW_UPDATE_AVAILABLE",
+                    version: SW_VERSION,
                 });
             });
         })
@@ -37,7 +35,7 @@ firebase.initializeApp({
     apiKey: "AIzaSyCxKyv-Xh5R7iStYT9-MD7mdgb4rc3p3z0",
     authDomain: "pixelfed-38904.firebaseapp.com",
     projectId: "pixelfed-38904",
-    storageBucket: "pixelfed-38904.appspot.com", // fixed typo from 'firebaseStorage.app'
+    storageBucket: "pixelfed-38904.appspot.com",
     messagingSenderId: "1080382857079",
     appId: "1:1080382857079:web:412638d701febb0c034b72",
     measurementId: "G-PTH81EBDG4",
@@ -56,7 +54,7 @@ messaging.onBackgroundMessage(function (payload) {
     if (payload.data) {
         const notificationBody = payload.data.body || "";
         const notificationTitle = payload.data.title || "New Notification";
-        
+
         // BLOCK LIST: Filter out any system notifications
         const blockTerms = [
             "updated",
@@ -66,23 +64,24 @@ messaging.onBackgroundMessage(function (payload) {
             "reload",
             "restart",
             "update available",
-            "has been updated"
+            "has been updated",
         ];
-        
+
         // Check if notification contains any blocked terms
-        const containsBlockedTerm = blockTerms.some(term => 
-            notificationBody.toLowerCase().includes(term.toLowerCase()) || 
-            notificationTitle.toLowerCase().includes(term.toLowerCase())
+        const containsBlockedTerm = blockTerms.some(
+            (term) =>
+                notificationBody.toLowerCase().includes(term.toLowerCase()) ||
+                notificationTitle.toLowerCase().includes(term.toLowerCase())
         );
-        
+
         if (containsBlockedTerm) {
             console.log("Blocked system notification:", {
                 title: notificationTitle,
-                body: notificationBody
+                body: notificationBody,
             });
             return; // Skip this notification entirely
         }
-        
+
         // ALLOW LIST: Only show notifications that match specific user interaction patterns
         const isUserInteraction =
             notificationBody.includes("liked") ||
@@ -100,20 +99,19 @@ messaging.onBackgroundMessage(function (payload) {
                 body: notificationBody,
                 icon: "/img/logo/pwa/192.png",
                 tag:
-                    payload.data.notificationId || "notification-" + Date.now(), // Use unique ID to prevent duplicates
-                vibrate: [100, 50, 100], // Vibration pattern
+                    payload.data.notificationId || "notification-" + Date.now(),
+                vibrate: [100, 50, 100],
                 data: {
-                    url: payload.data.url || "/", // URL for navigation
+                    url: payload.data.url || "/",
                     timestamp: payload.data.timestamp || Date.now().toString(),
                 },
             };
 
-            // Check if we already displayed this notification
+            // Check for duplicate notifications
             const notificationKey = `notification-${payload.data.notificationId}`;
             const displayedNotifications = self.displayedNotifications || {};
 
             if (!displayedNotifications[notificationKey]) {
-                // Mark this notification as displayed
                 displayedNotifications[notificationKey] = true;
                 self.displayedNotifications = displayedNotifications;
 
@@ -141,7 +139,7 @@ messaging.onBackgroundMessage(function (payload) {
     }
 });
 
-// ✅ Handle notification click to open specific page
+// Handle notification click to open specific page
 self.addEventListener("notificationclick", function (event) {
     console.log("[firebase-messaging-sw.js] Notification clicked:", event);
     event.stopPropagation();
@@ -153,12 +151,10 @@ self.addEventListener("notificationclick", function (event) {
             .matchAll({ type: "window", includeUncontrolled: true })
             .then((clientList) => {
                 for (const client of clientList) {
-                    // Focus if already open
                     if (client.url === urlToOpen && "focus" in client) {
                         return client.focus();
                     }
                 }
-                // Open new tab if not open
                 if (clients.openWindow) {
                     return clients.openWindow(urlToOpen);
                 }
