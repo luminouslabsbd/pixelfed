@@ -45,6 +45,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Intercept all messages before they become notifications
 messaging.onBackgroundMessage(function (payload) {
     console.log(
         "[firebase-messaging-sw.js] Received background message",
@@ -54,26 +55,43 @@ messaging.onBackgroundMessage(function (payload) {
     // Check if we have data in the payload
     if (payload.data) {
         const notificationBody = payload.data.body || "";
-
-        // Filter out "site has been updated" notifications
-        if (
-            notificationBody.includes("updated in the background") ||
-            notificationBody.includes("site has been updated")
-        ) {
-            console.log(
-                "Filtered out site update notification:",
-                notificationBody
-            );
-            return; // Skip this notification
+        const notificationTitle = payload.data.title || "New Notification";
+        
+        // BLOCK LIST: Filter out any system notifications
+        const blockTerms = [
+            "updated",
+            "background",
+            "new version",
+            "refresh",
+            "reload",
+            "restart",
+            "update available",
+            "has been updated"
+        ];
+        
+        // Check if notification contains any blocked terms
+        const containsBlockedTerm = blockTerms.some(term => 
+            notificationBody.toLowerCase().includes(term.toLowerCase()) || 
+            notificationTitle.toLowerCase().includes(term.toLowerCase())
+        );
+        
+        if (containsBlockedTerm) {
+            console.log("Blocked system notification:", {
+                title: notificationTitle,
+                body: notificationBody
+            });
+            return; // Skip this notification entirely
         }
-
-        // Check if this is a user interaction notification (like, comment, follow, etc.)
+        
+        // ALLOW LIST: Only show notifications that match specific user interaction patterns
         const isUserInteraction =
             notificationBody.includes("liked") ||
             notificationBody.includes("followed") ||
             notificationBody.includes("commented") ||
             notificationBody.includes("mentioned") ||
-            notificationBody.includes("message");
+            notificationBody.includes("message") ||
+            notificationBody.includes("tagged") ||
+            notificationBody.includes("shared");
 
         // Only proceed with user interaction notifications
         if (isUserInteraction) {
