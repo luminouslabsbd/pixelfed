@@ -1,9 +1,37 @@
+// Service worker version - increment this when making important changes
+const SW_VERSION = '1.0.0';
+
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
 );
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js"
 );
+
+// Force immediate update when a new service worker is available
+self.addEventListener('install', event => {
+    console.log(`[Service Worker] Installing new version ${SW_VERSION}`);
+    self.skipWaiting(); // Forces the waiting service worker to become the active service worker
+});
+
+// When the service worker is activated (after skipWaiting)
+self.addEventListener('activate', event => {
+    console.log(`[Service Worker] Activated new version ${SW_VERSION}`);
+    // Take control of all clients immediately
+    event.waitUntil(clients.claim());
+    
+    // Notify all open windows about the update
+    event.waitUntil(
+        clients.matchAll({type: 'window'}).then(clientList => {
+            clientList.forEach(client => {
+                client.postMessage({
+                    type: 'SW_UPDATED',
+                    version: SW_VERSION
+                });
+            });
+        })
+    );
+});
 
 firebase.initializeApp({
     apiKey: "AIzaSyCxKyv-Xh5R7iStYT9-MD7mdgb4rc3p3z0",

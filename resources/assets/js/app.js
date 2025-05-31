@@ -60,10 +60,80 @@ window.App.boot = function () {
 
 window.addEventListener("load", () => {
     if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js");
-        navigator.serviceWorker.register("/firebase-messaging-sw.js");
+        // Register the main service worker
+        navigator.serviceWorker.register("/sw.js").then(registration => {
+            // Check for updates periodically
+            setInterval(() => {
+                registration.update();
+            }, 60 * 60 * 1000); // Check for updates every hour
+        });
+        
+        // Register the Firebase service worker
+        navigator.serviceWorker.register("/firebase-messaging-sw.js").then(registration => {
+            console.log('Firebase Service Worker registered with scope:', registration.scope);
+            
+            // Check for updates periodically
+            setInterval(() => {
+                registration.update();
+            }, 60 * 60 * 1000); // Check for updates every hour
+        }).catch(error => {
+            console.error('Firebase Service Worker registration failed:', error);
+        });
+        
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.type === 'SW_UPDATED') {
+                console.log(`Service Worker updated to version ${event.data.version}`);
+                
+                // Show update notification to user
+                showUpdateNotification(event.data.version);
+            }
+        });
     }
 });
+
+// Function to show update notification to user
+function showUpdateNotification(version) {
+    // Check if we've already shown this notification
+    const lastNotifiedVersion = localStorage.getItem('lastNotifiedVersion');
+    if (lastNotifiedVersion === version) {
+        return; // Already notified for this version
+    }
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = 'update-notification';
+    notification.innerHTML = `
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <strong>App Updated!</strong> Pixelfed has been updated to version ${version}.
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+    `;
+    
+    // Add to DOM
+    document.body.appendChild(notification);
+    
+    // Save that we've shown this notification
+    localStorage.setItem('lastNotifiedVersion', version);
+    
+    // Add styles if not already present
+    if (!document.getElementById('update-notification-styles')) {
+        const style = document.createElement('style');
+        style.id = 'update-notification-styles';
+        style.textContent = `
+            .update-notification {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 9999;
+                max-width: 400px;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
 
 window.App.util = {
     compose: {
