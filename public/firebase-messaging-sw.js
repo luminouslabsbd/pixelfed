@@ -23,18 +23,38 @@ messaging.onBackgroundMessage(function (payload) {
         payload
     );
 
-    const notificationTitle = payload.info?.title || "New Notification";
-    const notificationOptions = {
-        body: payload.info?.body,
-        icon: "/img/logo/pwa/192.png",
-        tag: "notification-tag", // Prevents duplicate notifications
-        // vibrate: [100, 50, 100], // Vibration pattern
-        data: {
-            url: payload.data?.url || "/", // pass custom URL for navigation
-        },
-    };
+    // Check if we have data in the payload
+    if (payload.data) {
+        const notificationTitle = payload.data.title || "New Notification";
+        const notificationOptions = {
+            body: payload.data.body,
+            icon: "/img/logo/pwa/192.png",
+            tag: payload.data.notificationId || "notification-" + Date.now(), // Use unique ID to prevent duplicates
+            vibrate: [100, 50, 100], // Vibration pattern
+            data: {
+                url: payload.data.url || "/", // URL for navigation
+                timestamp: payload.data.timestamp || Date.now().toString(),
+            },
+        };
 
-    self.registration.showNotification(notificationTitle, notificationOptions);
+        // Check if we already displayed this notification
+        const notificationKey = `notification-${payload.data.notificationId}`;
+        const displayedNotifications = self.displayedNotifications || {};
+
+        if (!displayedNotifications[notificationKey]) {
+            // Mark this notification as displayed
+            displayedNotifications[notificationKey] = true;
+            self.displayedNotifications = displayedNotifications;
+
+            // Display the notification
+            self.registration.showNotification(
+                notificationTitle,
+                notificationOptions
+            );
+        } else {
+            console.log("Prevented duplicate notification:", notificationKey);
+        }
+    }
 });
 
 // ✅ Handle notification click to open specific page
