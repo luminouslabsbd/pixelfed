@@ -25,34 +25,72 @@ messaging.onBackgroundMessage(function (payload) {
 
     // Check if we have data in the payload
     if (payload.data) {
-        const notificationTitle = payload.data.title || "New Notification";
-        const notificationOptions = {
-            body: payload.data.body,
-            icon: "/img/logo/pwa/192.png",
-            tag: payload.data.notificationId || "notification-" + Date.now(), // Use unique ID to prevent duplicates
-            vibrate: [100, 50, 100], // Vibration pattern
-            data: {
-                url: payload.data.url || "/", // URL for navigation
-                timestamp: payload.data.timestamp || Date.now().toString(),
-            },
-        };
+        const notificationBody = payload.data.body || "";
 
-        // Check if we already displayed this notification
-        const notificationKey = `notification-${payload.data.notificationId}`;
-        const displayedNotifications = self.displayedNotifications || {};
-
-        if (!displayedNotifications[notificationKey]) {
-            // Mark this notification as displayed
-            displayedNotifications[notificationKey] = true;
-            self.displayedNotifications = displayedNotifications;
-
-            // Display the notification
-            self.registration.showNotification(
-                notificationTitle,
-                notificationOptions
+        // Filter out "site has been updated" notifications
+        if (
+            notificationBody.includes("updated in the background") ||
+            notificationBody.includes("site has been updated")
+        ) {
+            console.log(
+                "Filtered out site update notification:",
+                notificationBody
             );
+            return; // Skip this notification
+        }
+
+        // Check if this is a user interaction notification (like, comment, follow, etc.)
+        const isUserInteraction =
+            notificationBody.includes("liked") ||
+            notificationBody.includes("followed") ||
+            notificationBody.includes("commented") ||
+            notificationBody.includes("mentioned") ||
+            notificationBody.includes("message");
+
+        // Only proceed with user interaction notifications
+        if (isUserInteraction) {
+            const notificationTitle = payload.data.title || "New Notification";
+            const notificationOptions = {
+                body: notificationBody,
+                icon: "/img/logo/pwa/192.png",
+                tag:
+                    payload.data.notificationId || "notification-" + Date.now(), // Use unique ID to prevent duplicates
+                vibrate: [100, 50, 100], // Vibration pattern
+                data: {
+                    url: payload.data.url || "/", // URL for navigation
+                    timestamp: payload.data.timestamp || Date.now().toString(),
+                },
+            };
+
+            // Check if we already displayed this notification
+            const notificationKey = `notification-${payload.data.notificationId}`;
+            const displayedNotifications = self.displayedNotifications || {};
+
+            if (!displayedNotifications[notificationKey]) {
+                // Mark this notification as displayed
+                displayedNotifications[notificationKey] = true;
+                self.displayedNotifications = displayedNotifications;
+
+                // Display the notification
+                self.registration.showNotification(
+                    notificationTitle,
+                    notificationOptions
+                );
+                console.log(
+                    "Displayed user interaction notification:",
+                    notificationBody
+                );
+            } else {
+                console.log(
+                    "Prevented duplicate notification:",
+                    notificationKey
+                );
+            }
         } else {
-            console.log("Prevented duplicate notification:", notificationKey);
+            console.log(
+                "Skipped non-user interaction notification:",
+                notificationBody
+            );
         }
     }
 });
