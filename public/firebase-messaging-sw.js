@@ -23,9 +23,9 @@ messaging.onBackgroundMessage(function (payload) {
         payload
     );
 
-    const notificationTitle = payload.notification?.title || "New Notification";
+    const notificationTitle = payload.info?.title || "New Notification";
     const notificationOptions = {
-        body: payload.notification?.body,
+        body: payload.info?.body,
         icon: "/img/logo/pwa/192.png",
         tag: "notification-tag", // Prevents duplicate notifications
         // vibrate: [100, 50, 100], // Vibration pattern

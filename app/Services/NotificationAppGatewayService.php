@@ -181,7 +181,7 @@ class NotificationAppGatewayService
                 ->post('https://fcm.googleapis.com/v1/projects/pixelfed-38904/messages:send', [
                     'message' => [
                         'token' => $userToken,
-                        'notification' => [
+                        'info' => [
                             'title' => env('APP_NAME') ?? "Pixelfed",
                             'body' => self::bodyTitleMake($type, $actor), // Fixed string concatenation and grammar
                         ],
