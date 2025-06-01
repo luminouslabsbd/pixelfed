@@ -3,6 +3,7 @@
 namespace App\Jobs\LikePipeline;
 
 use App\Jobs\PushNotificationPipeline\LikePushNotifyPipeline;
+use App\Jobs\PushNotificationPipeline\LikeComPushNotifyPipeline;
 use App\Like;
 use App\Notification;
 use App\Services\NotificationAppGatewayService;
@@ -108,10 +109,10 @@ class LikePipeline implements ShouldQueue
         if($isComment == 1){
             \Log::info('Comment Like');
             if (NotificationAppGatewayService::enabled()) {
-                if (PushNotificationService::check('like', $status->profile_id)) {
+                if (PushNotificationService::check('comment_like', $status->profile_id)) {
                     $user = User::whereProfileId($status->profile_id)->first();
                     if ($user && $user->expo_token && $user->notify_enabled) {
-                        LikePushNotifyPipeline::dispatchSync($user->expo_token, $actor->username , $status->id);
+                        LikeComPushNotifyPipeline::dispatchSync($user->expo_token, $actor->username , $status->id);
                     }
                 }
             }

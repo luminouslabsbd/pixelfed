@@ -145,6 +145,7 @@ class NotificationAppGatewayService
             'comment' => "$actor commented on your post.",
             'mention' => "$actor mentioned you in a post.",
             'dm'      => "$actor sent you a direct message.",
+            'comment_like' => "$actor liked your comment.",
         ];
         \Log::info($type);
         return $messages[$type] ?? "$actor interacted with you.";
@@ -154,7 +155,7 @@ class NotificationAppGatewayService
     {
         $dynamicUrl = null;
 
-        if (in_array($type, ['like', 'comment', 'mention']) && $dynamicValue) {
+        if (in_array($type, ['like', 'comment', 'mention','comment_like']) && $dynamicValue) {
             $dynamicUrl = url("i/web/post/{$dynamicValue}");
         }elseif ($type === 'dm' && $dynamicValue) {
             $dynamicUrl = url("i/web/direct/thread/{$dynamicValue}");
