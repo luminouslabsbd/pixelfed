@@ -100,25 +100,19 @@ class LikePipeline implements ShouldQueue
                 if (PushNotificationService::check('like', $status->profile_id)) {
                     $user = User::whereProfileId($status->profile_id)->first();
                     if ($user && $user->expo_token && $user->notify_enabled) {
-                        LikePushNotifyPipeline::dispatchSync($user->expo_token, $actor->username , $status->id);
+                        if($isComment == 1){
+                            \Log::info('Comment Like');
+                            LikeComPushNotifyPipeline::dispatchSync($user->expo_token, $actor->username , $status->id);
+                        }else{
+                           LikePushNotifyPipeline::dispatchSync($user->expo_token, $actor->username , $status->id);
+                        }
+                        
                     }
                 }
             }
         }
 
-        if($isComment == 1){
-            \Log::info('Comment Like');
-            if (NotificationAppGatewayService::enabled()) {
-                if (PushNotificationService::check('comment_like', $status->profile_id)) {
-                    $user = User::whereProfileId($status->profile_id)->first();
-                    if ($user && $user->expo_token && $user->notify_enabled) {
-                        LikeComPushNotifyPipeline::dispatchSync($user->expo_token, $actor->username , $status->id);
-                    }
-                }
-            }
-        }else{
-            \Log::info('Comment Like No');
-        }
+        
 
 
     }
