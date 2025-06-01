@@ -57,6 +57,8 @@ class LikePipeline implements ShouldQueue
 
         $status = $this->like->status;
         $actor = $this->like->actor;
+        
+        $isComment = $this->like->is_comment;
 
         if (! $status) {
             // Ignore notifications to deleted statuses
@@ -102,6 +104,22 @@ class LikePipeline implements ShouldQueue
                 }
             }
         }
+
+        if($isComment == 1){
+            \Log::info('Comment Like');
+            if (NotificationAppGatewayService::enabled()) {
+                if (PushNotificationService::check('like', $status->profile_id)) {
+                    $user = User::whereProfileId($status->profile_id)->first();
+                    if ($user && $user->expo_token && $user->notify_enabled) {
+                        LikePushNotifyPipeline::dispatchSync($user->expo_token, $actor->username , $status->id);
+                    }
+                }
+            }
+        }else{
+            \Log::info('Comment Like No');
+        }
+
+
     }
 
     public function remoteLikeDeliver()
