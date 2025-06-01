@@ -89,7 +89,7 @@ class LikePipeline implements ShouldQueue
 
         if ($status->uri === null && $status->object_url === null && $status->url === null) {
             try {
-                if(!$exists){
+                if($exists == 0 ){
                     $notification = new Notification;
                     $notification->profile_id = $status->profile_id;
                     $notification->actor_id = $actor->id;
