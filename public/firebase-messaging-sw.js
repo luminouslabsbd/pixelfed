@@ -114,19 +114,19 @@ function getEncryptionKey() {
 function processNotification(data) {
     console.log('Processing notification data:', data);
 
-    // CRITICAL: Block all system update notifications immediately
-    if (data && (data.body || data.title)) {
+    // Only block notifications that are clearly system-generated (not from your backend)
+    // Check if this is a notification from your backend (has type or notificationId)
+    const isBackendNotification = data.type || data.notificationId || data.url;
+
+    if (!isBackendNotification && data && (data.body || data.title)) {
         const bodyText = (data.body || '').toLowerCase();
         const titleText = (data.title || '').toLowerCase();
 
+        // Only block very specific system phrases, not general words
         const systemUpdatePhrases = [
             'this site has been updated in the background',
-            'site has been updated',
-            'updated in the background',
-            'page has been updated',
-            'content has been updated',
-            'new version available',
-            'refresh to see changes'
+            'new version of this site is available',
+            'refresh this page to see updates'
         ];
 
         for (const phrase of systemUpdatePhrases) {
@@ -138,6 +138,16 @@ function processNotification(data) {
         }
     }
 
+    // Log that we're processing a backend notification
+    if (isBackendNotification) {
+        console.log('Processing backend notification:', {
+            type: data.type,
+            notificationId: data.notificationId,
+            title: data.title,
+            body: data.body
+        });
+    }
+
     const notificationBody = data.body || "";
     const notificationTitle = data.title || "New Notification";
     const notificationUrl = data.url || "/";
@@ -145,9 +155,12 @@ function processNotification(data) {
     const timestamp = data.timestamp || Date.now().toString();
     const notificationType = data.type || "unknown";
 
-    // Early check for specific system messages
-    if (notificationBody.toLowerCase().includes("this site has been updated in the background") ||
-        notificationTitle.toLowerCase().includes("this site has been updated in the background")) {
+    // Only block if this is NOT a backend notification and contains specific system phrases
+    const isFromBackend = notificationType !== "unknown" || notificationId.includes("notification-") === false;
+
+    if (!isFromBackend &&
+        (notificationBody.toLowerCase().includes("this site has been updated in the background") ||
+         notificationTitle.toLowerCase().includes("this site has been updated in the background"))) {
         console.log("Blocked specific system update notification");
         return;
     }
@@ -160,40 +173,45 @@ function processNotification(data) {
         type: notificationType
     });
 
-    // BLOCK LIST: Filter out any system notifications
+    // BLOCK LIST: Only block very specific system notification phrases
+    // Don't block general words that might be in user notifications
     const blockTerms = [
-        "updated",
-        "background",
-        "new version",
-        "refresh",
-        "reload",
-        "restart",
-        "update available",
-        "has been updated",
-        "site has been updated",
-        "updated in the background",
-        "this site has been updated",
-        "page has been updated",
-        "content has been updated"
+        "this site has been updated in the background",
+        "new version of this site is available",
+        "refresh this page to see updates",
+        "site needs to be refreshed"
     ];
 
-    // Check if notification contains any blocked terms
-    const containsBlockedTerm = blockTerms.some(
-        (term) =>
-            notificationBody.toLowerCase().includes(term.toLowerCase()) ||
-            notificationTitle.toLowerCase().includes(term.toLowerCase())
-    );
+    // Only check for blocked terms if this is NOT a backend notification
+    const hasBackendIdentifiers = notificationType !== "unknown" ||
+                                  notificationUrl !== "/" ||
+                                  notificationId.startsWith("notification-") === false;
 
-    if (containsBlockedTerm) {
-        console.log("Blocked system notification:", {
+    if (!hasBackendIdentifiers) {
+        // Check if notification contains any blocked terms
+        const containsBlockedTerm = blockTerms.some(
+            (term) =>
+                notificationBody.toLowerCase().includes(term.toLowerCase()) ||
+                notificationTitle.toLowerCase().includes(term.toLowerCase())
+        );
+
+        if (containsBlockedTerm) {
+            console.log("Blocked system notification:", {
+                title: notificationTitle,
+                body: notificationBody,
+                reason: "Contains blocked term"
+            });
+            return;
+        }
+    } else {
+        console.log("Allowing backend notification:", {
             title: notificationTitle,
             body: notificationBody,
-            reason: "Contains blocked term"
+            type: notificationType
         });
-        return;
     }
 
-    // ALLOW LIST: Only show notifications that match specific user interaction patterns
+    // ALLOW LIST: Show notifications that are from backend or match user interaction patterns
     const isUserInteraction =
         notificationType === "like" ||
         notificationType === "follow" ||
@@ -202,6 +220,7 @@ function processNotification(data) {
         notificationType === "dm" ||
         notificationType === "tag" ||
         notificationType === "share" ||
+        notificationType === "comment_like" ||
         notificationBody.includes("liked") ||
         notificationBody.includes("followed") ||
         notificationBody.includes("commented") ||
@@ -210,8 +229,13 @@ function processNotification(data) {
         notificationBody.includes("tagged") ||
         notificationBody.includes("shared");
 
-    // Only proceed with user interaction notifications
-    if (isUserInteraction) {
+    // Also allow if this looks like a backend notification (has proper structure)
+    const isFromBackendService = notificationType !== "unknown" ||
+                                 notificationUrl !== "/" ||
+                                 (notificationId && !notificationId.startsWith("notification-" + Date.now().toString().slice(0, 8)));
+
+    // Only proceed with user interaction notifications or backend notifications
+    if (isUserInteraction || isFromBackendService) {
         const notificationOptions = {
             body: notificationBody,
             icon: "/img/logo/pwa/192.png",
@@ -293,10 +317,10 @@ messaging.onBackgroundMessage(async function (payload) {
         return;
     }
 
-    // Block any system update notifications at the source
+    // Only block very specific system notifications at FCM level
     if (payload.notification && payload.notification.body) {
         const body = payload.notification.body.toLowerCase();
-        if (body.includes('updated') || body.includes('background') || body.includes('site has been')) {
+        if (body.includes('this site has been updated in the background')) {
             console.log('Blocked system notification at FCM level:', payload.notification);
             return;
         }
@@ -456,6 +480,48 @@ self.addEventListener('message', function(event) {
                 message: `Error processing notification: ${error.message}`
             });
         }
+    } else if (event.data && event.data.type === 'SIMULATE_FCM_MESSAGE') {
+        console.log('Simulating FCM background message...');
+        const payload = event.data.payload;
+
+        // Process exactly like a real FCM message
+        try {
+            // Check notification permission
+            if (Notification.permission !== 'granted') {
+                console.warn('Notification permission not granted, cannot show notification');
+                return;
+            }
+
+            // Check if we have data in the payload
+            if (payload.data) {
+                console.log("Simulated FCM payload data received:", payload.data);
+
+                // Create notification data structure
+                let notificationData = {
+                    body: payload.data.body || "You have a new notification",
+                    title: payload.data.title || "New Notification",
+                    url: payload.data.url || "/notifications",
+                    notificationId: payload.data.notificationId || ("notification-" + Date.now()),
+                    timestamp: payload.data.timestamp || Date.now().toString(),
+                    type: payload.data.type || "like"
+                };
+
+                // Check if encrypted (simulate decryption)
+                if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
+                    console.log("Simulated encrypted notification");
+                    // For testing, just use sample decrypted data
+                    notificationData.body = "Decrypted: Someone liked your post";
+                    notificationData.type = "like";
+                }
+
+                console.log("Final simulated notification data:", notificationData);
+
+                // Process through normal flow
+                processNotification(notificationData);
+            }
+        } catch (error) {
+            console.error('Error processing simulated FCM message:', error);
+        }
     }
 });
 
@@ -463,13 +529,12 @@ self.addEventListener('message', function(event) {
 const originalShowNotification = self.registration.showNotification;
 if (originalShowNotification) {
     self.registration.showNotification = function(title, options) {
-        // Additional check for system notifications
+        // Only block very specific system notification phrases
         const titleLower = title.toLowerCase();
         const bodyLower = options && options.body ? options.body.toLowerCase() : '';
 
-        if (titleLower.includes('updated') || titleLower.includes('background') ||
-            bodyLower.includes('updated') || bodyLower.includes('background') ||
-            bodyLower.includes('this site has been updated')) {
+        if (bodyLower.includes('this site has been updated in the background') ||
+            titleLower.includes('this site has been updated in the background')) {
             console.log('Blocked notification via showNotification override:', { title, body: options?.body });
             return Promise.resolve();
         }
