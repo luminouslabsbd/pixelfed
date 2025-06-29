@@ -74,31 +74,22 @@ const CryptoHelper = {
     },
 
     /**
-     * Derive a key from a password
+     * Derive a key from a password using the same method as backend
      * @param {string} password - Password to derive key from
      * @returns {Promise<CryptoKey>} - Derived key
      */
     async deriveKey(password) {
         const encoder = new TextEncoder();
-        const keyMaterial = await crypto.subtle.importKey(
+
+        // Hash the password using SHA-256 and take first 32 bytes (same as backend)
+        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+        const hashArray = new Uint8Array(hashBuffer);
+        const keyBytes = hashArray.slice(0, 32); // Take first 32 bytes (256 bits)
+
+        // Import the key for AES-CBC
+        return crypto.subtle.importKey(
             'raw',
-            encoder.encode(password),
-            { name: 'PBKDF2' },
-            false,
-            ['deriveBits', 'deriveKey']
-        );
-        
-        // Use a salt and iteration count
-        const salt = encoder.encode('pixelfed-notification-salt');
-        
-        return crypto.subtle.deriveKey(
-            {
-                name: 'PBKDF2',
-                salt: salt,
-                iterations: 100000,
-                hash: 'SHA-256'
-            },
-            keyMaterial,
+            keyBytes,
             { name: 'AES-CBC', length: 256 },
             false,
             ['encrypt', 'decrypt']

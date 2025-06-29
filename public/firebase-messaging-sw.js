@@ -126,9 +126,8 @@ function processNotification(data) {
         type: notificationType
     });
 
-    // FORCE DISPLAY FOR TESTING - REMOVE THIS IN PRODUCTION
-    // This will bypass all filters to ensure notifications are displaying
-    const forceDisplay = true;
+    // Enable display for user notifications
+    const enableDisplay = true;
 
     // BLOCK LIST: Filter out any system notifications
     const blockTerms = [
@@ -149,7 +148,7 @@ function processNotification(data) {
             notificationTitle.toLowerCase().includes(term.toLowerCase())
     );
 
-    if (containsBlockedTerm && !forceDisplay) {
+    if (containsBlockedTerm && !enableDisplay) {
         console.log("Blocked system notification:", {
             title: notificationTitle,
             body: notificationBody,
@@ -174,8 +173,8 @@ function processNotification(data) {
         notificationBody.includes("tagged") ||
         notificationBody.includes("shared");
 
-    // Only proceed with user interaction notifications or if force display is enabled
-    if (isUserInteraction || forceDisplay) {
+    // Only proceed with user interaction notifications or if display is enabled
+    if (isUserInteraction || enableDisplay) {
         const notificationOptions = {
             body: notificationBody,
             icon: "/img/logo/pwa/192.png",
@@ -186,37 +185,55 @@ function processNotification(data) {
                 timestamp: timestamp,
                 type: notificationType
             },
-            requireInteraction: true
+            requireInteraction: false, // Changed to false for better compatibility
+            silent: false,
+            renotify: false
         };
 
-        // Check for duplicate notifications
-        const notificationKey = `notification-${notificationId}`;
-        const displayedNotifications = self.displayedNotifications || {};
+        // Display the notification
+        console.log('Attempting to show notification:', {
+            title: notificationTitle,
+            options: notificationOptions
+        });
 
-        if (!displayedNotifications[notificationKey]) {
-            displayedNotifications[notificationKey] = true;
-            self.displayedNotifications = displayedNotifications;
+        // Check if we can show notifications
+        if (!self.registration) {
+            console.error('Service worker registration not available');
+            return;
+        }
 
-            // Display the notification
-            console.log('Showing notification with options:', notificationOptions);
-            self.registration.showNotification(
+        try {
+            const notificationPromise = self.registration.showNotification(
                 notificationTitle,
                 notificationOptions
-            ).then(() => {
-                console.log('Notification displayed successfully');
-            }).catch(error => {
-                console.error('Error showing notification:', error);
+            );
+
+            if (notificationPromise && notificationPromise.then) {
+                notificationPromise
+                    .then(() => {
+                        console.log('Notification displayed successfully:', {
+                            title: notificationTitle,
+                            body: notificationBody,
+                            url: notificationUrl
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error in notification promise:', error);
+                    });
+            } else {
+                console.log('Notification displayed (no promise returned):', {
+                    title: notificationTitle,
+                    body: notificationBody,
+                    url: notificationUrl
+                });
+            }
+        } catch (error) {
+            console.error('Error showing notification:', error);
+            console.error('Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
             });
-            
-            console.log(
-                "Displayed notification:",
-                notificationBody
-            );
-        } else {
-            console.log(
-                "Prevented duplicate notification:",
-                notificationKey
-            );
         }
     } else {
         console.log(
@@ -233,12 +250,15 @@ messaging.onBackgroundMessage(async function (payload) {
         payload
     );
 
+    // Check notification permission
+    if (Notification.permission !== 'granted') {
+        console.warn('Notification permission not granted, cannot show notification');
+        return;
+    }
+
     // Check if we have data in the payload
     if (payload.data) {
         console.log("FCM payload data received:", payload.data);
-        
-        // TEMPORARY: Force display all notifications for testing
-        const forceDisplay = true;
         
         // Create a basic notification with the available data
         let notificationData = {
@@ -284,37 +304,9 @@ messaging.onBackgroundMessage(async function (payload) {
         }
         
         console.log("Final notification data to process:", notificationData);
-        
-        // TEMPORARY: Force display for testing
-        if (forceDisplay) {
-            // Display a basic notification directly without filtering
-            const notificationOptions = {
-                body: notificationData.body || "You have a new notification",
-                icon: "/img/logo/pwa/192.png",
-                tag: notificationData.notificationId || "notification-" + Date.now(),
-                vibrate: [100, 50, 100],
-                data: {
-                    url: notificationData.url || "/notifications",
-                    timestamp: notificationData.timestamp || Date.now().toString(),
-                    type: notificationData.type || "like"
-                },
-                requireInteraction: true
-            };
-            
-            console.log("FORCING notification display with options:", notificationOptions);
-            
-            self.registration.showNotification(
-                notificationData.title || "New Notification",
-                notificationOptions
-            ).then(() => {
-                console.log("Notification displayed successfully");
-            }).catch(error => {
-                console.error("Error showing notification:", error);
-            });
-        } else {
-            // Process the notification through normal filters
-            processNotification(notificationData);
-        }
+
+        // Process the notification through the normal processing function
+        processNotification(notificationData);
     } else {
         console.warn("Received payload without data", payload);
     }
@@ -344,4 +336,59 @@ self.addEventListener("notificationclick", function (event) {
                 console.error("Error handling notification click:", err);
             })
     );
+});
+
+// Test function to verify notification display works
+function testNotificationDisplay() {
+    console.log('Testing notification display...');
+
+    if (Notification.permission !== 'granted') {
+        console.warn('Notification permission not granted');
+        return;
+    }
+
+    const testOptions = {
+        body: 'This is a test notification to verify display functionality',
+        icon: '/img/logo/pwa/192.png',
+        tag: 'test-notification',
+        vibrate: [100, 50, 100],
+        data: {
+            url: '/',
+            timestamp: Date.now().toString(),
+            type: 'test'
+        },
+        requireInteraction: false
+    };
+
+    try {
+        self.registration.showNotification('Test Notification', testOptions);
+        console.log('Test notification displayed successfully');
+    } catch (error) {
+        console.error('Error displaying test notification:', error);
+    }
+}
+
+// Expose test function for debugging
+self.testNotificationDisplay = testNotificationDisplay;
+
+// Add a message listener for testing from the main thread
+self.addEventListener('message', function(event) {
+    console.log('Service worker received message:', event.data);
+
+    if (event.data && event.data.type === 'TEST_NOTIFICATION') {
+        console.log('Testing notification from message...');
+        testNotificationDisplay();
+    } else if (event.data && event.data.type === 'TEST_ENCRYPTED_NOTIFICATION') {
+        console.log('Testing encrypted notification simulation...');
+
+        // Simulate an encrypted notification
+        const testData = {
+            body: 'Test encrypted notification body',
+            url: 'https://example.com/test',
+            notificationId: 'test_encrypted_123',
+            type: 'like'
+        };
+
+        processNotification(testData);
+    }
 });

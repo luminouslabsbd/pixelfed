@@ -201,8 +201,7 @@ class NotificationAppGatewayService
             // Encrypt sensitive fields
             try {
                 $encryptionService = new \App\Services\NotificationEncryptionService();
-                $encryptionKey = env('NOTIFICATION_ENCRYPTION_KEY', 'xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0');
-                
+
                 // Extract the fields to encrypt
                 $dataToEncrypt = [
                     'body' => $notificationData['body'],
@@ -210,9 +209,9 @@ class NotificationAppGatewayService
                     'notificationId' => $notificationData['notificationId'],
                     'type' => $notificationData['type']
                 ];
-                
-                // Encrypt the data
-                $encryptedResult = $encryptionService->encrypt(json_encode($dataToEncrypt), $encryptionKey);
+
+                // Encrypt the data (the encrypt method handles the key internally)
+                $encryptedResult = $encryptionService->encrypt($dataToEncrypt);
                 
                 if ($encryptedResult) {
                     // Replace the original fields with encrypted data
