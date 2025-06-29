@@ -38,11 +38,23 @@ firebase.initializeApp({
     apiKey: "AIzaSyCxKyv-Xh5R7iStYT9-MD7mdgb4rc3p3z0",
     authDomain: "pixelfed-38904.firebaseapp.com",
     projectId: "pixelfed-38904",
-    storageBucket: "pixelfed-38904.appspot.com",
+    storageBucket: "pixelfed-38904.firebasestorage.app",
     messagingSenderId: "1080382857079",
     appId: "1:1080382857079:web:412638d701febb0c034b72",
     measurementId: "G-PTH81EBDG4",
 });
+
+// firebase.initializeApp({
+//     apiKey: "YOUR_API_KEY",
+//     authDomain: "YOUR_AUTH_DOMAIN",
+//     projectId: "YOUR_PROJECT_ID",
+//     storageBucket: "YOUR_STORAGE_BUCKET",
+//     messagingSenderId: "YOUR_SENDER_ID",
+//     appId: "YOUR_APP_ID",
+//     measurementId: "YOUR_MEASUREMENT_ID"
+//   });
+  
+  
 
 const messaging = firebase.messaging();
 
