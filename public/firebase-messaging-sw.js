@@ -1,5 +1,8 @@
 // Service worker version - increment this when making important changes
-const SW_VERSION = "1.3.0";
+const SW_VERSION = "1.5.0";
+
+// Debug: Log all notification attempts
+console.log(`[Service Worker] Loading version ${SW_VERSION} - System notifications will be blocked`);
 
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
@@ -110,13 +113,44 @@ function getEncryptionKey() {
 // Process notification with either encrypted or non-encrypted data
 function processNotification(data) {
     console.log('Processing notification data:', data);
-    
+
+    // CRITICAL: Block all system update notifications immediately
+    if (data && (data.body || data.title)) {
+        const bodyText = (data.body || '').toLowerCase();
+        const titleText = (data.title || '').toLowerCase();
+
+        const systemUpdatePhrases = [
+            'this site has been updated in the background',
+            'site has been updated',
+            'updated in the background',
+            'page has been updated',
+            'content has been updated',
+            'new version available',
+            'refresh to see changes'
+        ];
+
+        for (const phrase of systemUpdatePhrases) {
+            if (bodyText.includes(phrase) || titleText.includes(phrase)) {
+                console.log(`BLOCKED: System update notification detected - "${phrase}"`);
+                console.log('Blocked notification data:', { title: data.title, body: data.body });
+                return; // Exit immediately
+            }
+        }
+    }
+
     const notificationBody = data.body || "";
     const notificationTitle = data.title || "New Notification";
     const notificationUrl = data.url || "/";
     const notificationId = data.notificationId || ("notification-" + Date.now());
     const timestamp = data.timestamp || Date.now().toString();
     const notificationType = data.type || "unknown";
+
+    // Early check for specific system messages
+    if (notificationBody.toLowerCase().includes("this site has been updated in the background") ||
+        notificationTitle.toLowerCase().includes("this site has been updated in the background")) {
+        console.log("Blocked specific system update notification");
+        return;
+    }
     
     console.log('Extracted notification fields:', {
         body: notificationBody,
@@ -125,9 +159,6 @@ function processNotification(data) {
         id: notificationId,
         type: notificationType
     });
-
-    // Enable display for user notifications
-    const enableDisplay = true;
 
     // BLOCK LIST: Filter out any system notifications
     const blockTerms = [
@@ -139,6 +170,11 @@ function processNotification(data) {
         "restart",
         "update available",
         "has been updated",
+        "site has been updated",
+        "updated in the background",
+        "this site has been updated",
+        "page has been updated",
+        "content has been updated"
     ];
 
     // Check if notification contains any blocked terms
@@ -148,10 +184,11 @@ function processNotification(data) {
             notificationTitle.toLowerCase().includes(term.toLowerCase())
     );
 
-    if (containsBlockedTerm && !enableDisplay) {
+    if (containsBlockedTerm) {
         console.log("Blocked system notification:", {
             title: notificationTitle,
             body: notificationBody,
+            reason: "Contains blocked term"
         });
         return;
     }
@@ -173,8 +210,8 @@ function processNotification(data) {
         notificationBody.includes("tagged") ||
         notificationBody.includes("shared");
 
-    // Only proceed with user interaction notifications or if display is enabled
-    if (isUserInteraction || enableDisplay) {
+    // Only proceed with user interaction notifications
+    if (isUserInteraction) {
         const notificationOptions = {
             body: notificationBody,
             icon: "/img/logo/pwa/192.png",
@@ -254,6 +291,15 @@ messaging.onBackgroundMessage(async function (payload) {
     if (Notification.permission !== 'granted') {
         console.warn('Notification permission not granted, cannot show notification');
         return;
+    }
+
+    // Block any system update notifications at the source
+    if (payload.notification && payload.notification.body) {
+        const body = payload.notification.body.toLowerCase();
+        if (body.includes('updated') || body.includes('background') || body.includes('site has been')) {
+            console.log('Blocked system notification at FCM level:', payload.notification);
+            return;
+        }
     }
 
     // Check if we have data in the payload
@@ -390,5 +436,45 @@ self.addEventListener('message', function(event) {
         };
 
         processNotification(testData);
+    } else if (event.data && event.data.type === 'TEST_PROCESS_NOTIFICATION') {
+        console.log('Testing notification processing from test page...');
+        const testData = event.data.data;
+
+        // Process the notification and send result back
+        try {
+            processNotification(testData);
+
+            // Send result back to the page
+            event.ports[0]?.postMessage({
+                type: 'NOTIFICATION_RESULT',
+                message: `Processed notification: ${testData.title} - ${testData.body}`
+            });
+        } catch (error) {
+            console.error('Error processing test notification:', error);
+            event.ports[0]?.postMessage({
+                type: 'NOTIFICATION_RESULT',
+                message: `Error processing notification: ${error.message}`
+            });
+        }
     }
 });
+
+// Override the showNotification method to add additional filtering
+const originalShowNotification = self.registration.showNotification;
+if (originalShowNotification) {
+    self.registration.showNotification = function(title, options) {
+        // Additional check for system notifications
+        const titleLower = title.toLowerCase();
+        const bodyLower = options && options.body ? options.body.toLowerCase() : '';
+
+        if (titleLower.includes('updated') || titleLower.includes('background') ||
+            bodyLower.includes('updated') || bodyLower.includes('background') ||
+            bodyLower.includes('this site has been updated')) {
+            console.log('Blocked notification via showNotification override:', { title, body: options?.body });
+            return Promise.resolve();
+        }
+
+        console.log('Allowing notification:', { title, body: options?.body });
+        return originalShowNotification.call(this, title, options);
+    };
+}
