@@ -177,60 +177,27 @@ messaging.onBackgroundMessage(async function (payload) {
     // Check if we have data in the payload
     if (payload.data) {
         console.log("FCM payload data received:", payload.data);
-        // Check if the payload is encrypted
-        // Handle both boolean and string values for compatibility
-        if (payload.data.encrypted === true || payload.data.encrypted === "true") {
-            try {
-                console.log("Attempting to decrypt payload:", {
-                    data: payload.data.data,
-                    iv: payload.data.iv,
-                    encrypted: payload.data.encrypted,
-                    timestamp: payload.data.timestamp
-                });
-                
-                // Decrypt the payload
-                const decryptedData = await decryptNotificationPayload(
-                    payload.data.data,
-                    payload.data.iv
-                );
-                
-                if (!decryptedData) {
-                    console.error("Failed to decrypt notification payload");
-                    // Fallback to showing the raw notification
-                    processNotification(payload.data);
-                    return;
-                }
-                
-                console.log("Successfully decrypted data:", decryptedData);
-                
-                // Process the notification with decrypted data
-                // Log the full decrypted data for debugging
-                console.log("Full decrypted notification data:", decryptedData);
-                
-                processNotification({
-                    body: decryptedData.body || "",
-                    title: decryptedData.title || "New Notification",
-                    url: decryptedData.url || "/",
-                    notificationId: decryptedData.notificationId || ("notification-" + Date.now()),
-                    timestamp: decryptedData.timestamp || Date.now().toString(),
-                    type: decryptedData.type || "unknown"
-                });
-            } catch (error) {
-                console.error("Error decrypting notification:", error);
-                // Fallback: Display a generic notification so the user still gets notified
-                console.log("Using fallback notification mechanism");
-                processNotification({
-                    body: "You have a new notification",
-                    title: "Pixelfed",
-                    url: "/notifications",
-                    notificationId: "fallback-" + Date.now(),
-                    timestamp: Date.now().toString()
-                });
-            }
-        } else {
-            // Handle legacy non-encrypted notifications
-            processNotification(payload.data);
-        }
+        
+        // Process the notification data directly
+        // We've simplified the flow to avoid encryption/decryption issues
+        console.log("Processing notification data:", payload.data);
+        
+        // Make sure all required fields are present
+        const notificationData = {
+            body: payload.data.body || "",
+            title: payload.data.title || "New Notification",
+            url: payload.data.url || "/notifications",
+            notificationId: payload.data.notificationId || ("notification-" + Date.now()),
+            timestamp: payload.data.timestamp || Date.now().toString(),
+            type: payload.data.type || "unknown"
+        };
+        
+        console.log("Processed notification data:", notificationData);
+        
+        // Process the notification
+        processNotification(notificationData);
+    } else {
+        console.warn("Received payload without data", payload);
     }
 });
 

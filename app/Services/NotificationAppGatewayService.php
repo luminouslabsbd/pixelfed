@@ -188,20 +188,20 @@ class NotificationAppGatewayService
                 'type' => $type
             ];
             
-            // Convert notification data to strings for FCM compatibility
-            $notificationDataStrings = [
-                'title' => (string) $notificationData['title'],
-                'body' => (string) $notificationData['body'],
-                'url' => (string) $notificationData['url'],
-                'notificationId' => (string) $notificationData['notificationId'],
-                'timestamp' => (string) $notificationData['timestamp'],
-                'type' => (string) $notificationData['type']
+            // For FCM compatibility, all values must be strings
+            $notificationData = [
+                'title' => (string) ($notificationData['title'] ?? env('APP_NAME') ?? "Pixelfed"),
+                'body' => (string) ($notificationData['body'] ?? self::bodyTitleMake($type, $actor)),
+                'url' => (string) ($notificationData['url'] ?? $url),
+                'notificationId' => (string) ($notificationData['notificationId'] ?? $notificationId),
+                'timestamp' => (string) ($notificationData['timestamp'] ?? time()),
+                'type' => (string) ($notificationData['type'] ?? $type)
             ];
             
-            // Encrypt the notification payload
-            $encryptedPayload = \App\Facades\NotificationEncryption::encrypt($notificationDataStrings);
+            // Log the notification data for debugging
+            \Log::info('Sending FCM notification with data:', $notificationData);
             
-            // Using data-only message to avoid automatic notification display by FCM
+            // Using data-only message to avoid automatic display by FCM
             // This gives full control to the service worker
             $response = Http::withToken($accessToken)
                 ->withHeaders([
@@ -210,16 +210,17 @@ class NotificationAppGatewayService
                 ->post('https://fcm.googleapis.com/v1/projects/pixelfed-38904/messages:send', [
                     'message' => [
                         'token' => $userToken,
-                        // Remove the 'notification' field to prevent automatic display
-                        // Instead, put all notification data in the data field
-                        'data' => [
-                            'encrypted' => 'true', // String for FCM compatibility
-                            'data' => $encryptedPayload['data'],
-                            'iv' => $encryptedPayload['iv'],
-                            'timestamp' => (string) time()
-                        ],
+                        // Send as a data message (not notification) to let service worker handle it
+                        'data' => $notificationData
                     ],
                 ]);
+                
+            // Log the response for debugging
+            $responseData = $response->json();
+            \Log::info('FCM Notification sent:', [
+                'type' => $type,
+                'response' => $responseData
+            ]);
             
             \Log::info('FCM Notification sent: ' . json_encode([
                 'type' => $type,
@@ -259,7 +260,7 @@ class NotificationAppGatewayService
     //         return false;
     //     }
     //     $url = 'https://'.config('instance.notifications.nag.endpoint').'/api/v1/relay/deliver';
-
+    
     //     try {
     //         $response = Http::withToken($apiKey)
     //             ->withHeaders(['X-PIXELFED-API' => 1])
