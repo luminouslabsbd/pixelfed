@@ -10,9 +10,74 @@ importScripts(
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js"
 );
-importScripts(
-    "/js/crypto-helper.js"
-);
+// Try to import crypto helper with error handling
+console.log("Attempting to load crypto-helper.js...");
+try {
+    importScripts("/js/crypto-helper.js");
+    console.log("Successfully loaded crypto-helper.js from absolute path");
+    console.log("CryptoHelper available:", typeof CryptoHelper !== 'undefined');
+} catch (error) {
+    console.error("Failed to load crypto-helper.js from absolute path:", error);
+    console.log("Error details:", error.message);
+    console.log("Attempting to load from relative path...");
+    try {
+        importScripts("js/crypto-helper.js");
+        console.log("Successfully loaded crypto-helper.js from relative path");
+        console.log("CryptoHelper available:", typeof CryptoHelper !== 'undefined');
+    } catch (error2) {
+        console.error("Failed to load crypto-helper.js from relative path:", error2);
+        console.log("Error details:", error2.message);
+        console.log("Crypto helper not available - encrypted notifications will not work");
+
+        // Create a minimal inline crypto helper as fallback
+        console.log("Creating inline crypto helper fallback...");
+        self.CryptoHelper = {
+            async decrypt(encryptedData, iv, key) {
+                try {
+                    console.log("Using inline crypto helper fallback");
+
+                    // Convert base64 to array buffer
+                    const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+                    const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+
+                    // Process key the same way as backend
+                    const encoder = new TextEncoder();
+                    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(key));
+                    const hashArray = new Uint8Array(hashBuffer);
+                    const keyBytes = hashArray.slice(0, 32);
+
+                    // Import key
+                    const cryptoKey = await crypto.subtle.importKey(
+                        'raw',
+                        keyBytes,
+                        { name: 'AES-CBC', length: 256 },
+                        false,
+                        ['decrypt']
+                    );
+
+                    // Decrypt
+                    const decryptedBuffer = await crypto.subtle.decrypt(
+                        { name: 'AES-CBC', iv: ivBuffer },
+                        cryptoKey,
+                        encryptedBuffer
+                    );
+
+                    // Convert to string and parse JSON
+                    const decryptedString = new TextDecoder().decode(decryptedBuffer);
+                    return JSON.parse(decryptedString);
+                } catch (error) {
+                    console.error("Inline crypto helper error:", error);
+                    return null;
+                }
+            }
+        };
+        console.log("Inline crypto helper created successfully");
+        console.log("CryptoHelper now available:", typeof CryptoHelper !== 'undefined');
+    }
+}
+
+// Final check of CryptoHelper availability
+console.log("Final CryptoHelper check:", typeof CryptoHelper !== 'undefined' ? "Available" : "Not available");
 
 // Install event: Do NOT call skipWaiting()
 self.addEventListener("install", (event) => {
@@ -64,25 +129,31 @@ const messaging = firebase.messaging();
 // Function to decrypt notification payload
 async function decryptNotificationPayload(encryptedData, iv) {
     try {
-        console.log('Starting decryption process with:', { 
+        console.log('Starting decryption process with:', {
             encryptedDataLength: encryptedData.length,
-            ivLength: iv.length 
+            ivLength: iv.length
         });
-        
+
+        // Check if CryptoHelper is available
+        if (typeof CryptoHelper === 'undefined') {
+            console.error("CryptoHelper not available - cannot decrypt notification");
+            return null;
+        }
+
         // Get the encryption key from localStorage or a secure source
         const key = getEncryptionKey();
-        
+
         if (!key) {
             console.error("Encryption key not found");
             return null;
         }
-        
+
         console.log('Using encryption key (first few chars):', key.substring(0, 5) + '...');
-        
+
         // Decrypt the data
         console.log('Calling CryptoHelper.decrypt...');
         const decryptedData = await CryptoHelper.decrypt(encryptedData, iv, key);
-        
+
         if (decryptedData) {
             console.log('Decryption successful, got data:', decryptedData);
             return decryptedData;
@@ -92,10 +163,10 @@ async function decryptNotificationPayload(encryptedData, iv) {
         }
     } catch (error) {
         console.error("Decryption error in decryptNotificationPayload:", error);
-        console.error("Error details:", { 
-            message: error.message, 
+        console.error("Error details:", {
+            message: error.message,
             name: error.name,
-            stack: error.stack 
+            stack: error.stack
         });
         return null;
     }
@@ -478,6 +549,52 @@ self.addEventListener('message', function(event) {
             event.ports[0]?.postMessage({
                 type: 'NOTIFICATION_RESULT',
                 message: `Error processing notification: ${error.message}`
+            });
+        }
+    } else if (event.data && event.data.type === 'TEST_CRYPTO_HELPER') {
+        console.log('Testing crypto helper availability...');
+
+        try {
+            // Test if CryptoHelper is available
+            if (typeof CryptoHelper !== 'undefined') {
+                console.log('CryptoHelper is available');
+
+                // Test basic functionality
+                const testKey = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
+                const testData = "eyJib2R5IjoidGVzdCJ9"; // base64 encoded {"body":"test"}
+                const testIV = "MTIzNDU2Nzg5MDEyMzQ1Ng=="; // base64 encoded test IV
+
+                CryptoHelper.decrypt(testData, testIV, testKey)
+                    .then(result => {
+                        console.log('Crypto helper test result:', result);
+                        event.ports[0]?.postMessage({
+                            type: 'CRYPTO_TEST_RESULT',
+                            success: true,
+                            message: 'Crypto helper is working'
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Crypto helper test failed:', error);
+                        event.ports[0]?.postMessage({
+                            type: 'CRYPTO_TEST_RESULT',
+                            success: false,
+                            error: error.message
+                        });
+                    });
+            } else {
+                console.error('CryptoHelper is not available');
+                event.ports[0]?.postMessage({
+                    type: 'CRYPTO_TEST_RESULT',
+                    success: false,
+                    error: 'CryptoHelper is not available'
+                });
+            }
+        } catch (error) {
+            console.error('Error testing crypto helper:', error);
+            event.ports[0]?.postMessage({
+                type: 'CRYPTO_TEST_RESULT',
+                success: false,
+                error: error.message
             });
         }
     } else if (event.data && event.data.type === 'SIMULATE_FCM_MESSAGE') {
