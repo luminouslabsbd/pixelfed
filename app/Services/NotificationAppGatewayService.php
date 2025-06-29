@@ -198,6 +198,40 @@ class NotificationAppGatewayService
                 'type' => (string) ($notificationData['type'] ?? $type)
             ];
             
+            // Encrypt sensitive fields
+            try {
+                $encryptionService = new \App\Services\NotificationEncryptionService();
+                $encryptionKey = env('NOTIFICATION_ENCRYPTION_KEY', 'xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0');
+                
+                // Extract the fields to encrypt
+                $dataToEncrypt = [
+                    'body' => $notificationData['body'],
+                    'url' => $notificationData['url'],
+                    'notificationId' => $notificationData['notificationId'],
+                    'type' => $notificationData['type']
+                ];
+                
+                // Encrypt the data
+                $encryptedResult = $encryptionService->encrypt(json_encode($dataToEncrypt), $encryptionKey);
+                
+                if ($encryptedResult) {
+                    // Replace the original fields with encrypted data
+                    $notificationData = [
+                        'title' => $notificationData['title'],
+                        'timestamp' => $notificationData['timestamp'],
+                        'encrypted' => 'true',
+                        'data' => $encryptedResult['data'],
+                        'iv' => $encryptedResult['iv']
+                    ];
+                    
+                    \Log::info('Notification data encrypted successfully');
+                } else {
+                    \Log::error('Failed to encrypt notification data, sending unencrypted');
+                }
+            } catch (\Exception $e) {
+                \Log::error('Exception encrypting notification data: ' . $e->getMessage());
+            }
+            
             // Log the notification data for debugging
             \Log::info('Sending FCM notification with data:', $notificationData);
             

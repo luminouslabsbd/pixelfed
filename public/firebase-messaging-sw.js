@@ -1,5 +1,5 @@
 // Service worker version - increment this when making important changes
-const SW_VERSION = "1.1.0";
+const SW_VERSION = "1.3.0";
 
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
@@ -190,21 +190,63 @@ messaging.onBackgroundMessage(async function (payload) {
     if (payload.data) {
         console.log("FCM payload data received:", payload.data);
         
-        // Process the notification data directly
-        // We've simplified the flow to avoid encryption/decryption issues
-        console.log("Processing notification data:", payload.data);
+        let notificationData;
         
-        // Make sure all required fields are present
-        const notificationData = {
-            body: payload.data.body || "",
-            title: payload.data.title || "New Notification",
-            url: payload.data.url || "/notifications",
-            notificationId: payload.data.notificationId || ("notification-" + Date.now()),
-            timestamp: payload.data.timestamp || Date.now().toString(),
-            type: payload.data.type || "unknown"
-        };
+        // Check if the notification is encrypted
+        if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
+            console.log("Received encrypted notification, attempting to decrypt");
+            
+            try {
+                // Decrypt the data
+                const decryptedData = await decryptNotificationPayload(payload.data.data, payload.data.iv);
+                
+                if (decryptedData) {
+                    console.log("Successfully decrypted notification data:", decryptedData);
+                    
+                    // Combine decrypted data with non-encrypted fields
+                    notificationData = {
+                        ...decryptedData,
+                        title: payload.data.title || "New Notification",
+                        timestamp: payload.data.timestamp || Date.now().toString()
+                    };
+                } else {
+                    console.error("Failed to decrypt notification data, using fallback");
+                    // Fallback to basic notification if decryption fails
+                    notificationData = {
+                        body: "You have a new notification",
+                        title: payload.data.title || "New Notification",
+                        url: "/notifications",
+                        notificationId: "notification-" + Date.now(),
+                        timestamp: payload.data.timestamp || Date.now().toString(),
+                        type: "unknown"
+                    };
+                }
+            } catch (error) {
+                console.error("Error decrypting notification:", error);
+                // Fallback to basic notification if decryption fails
+                notificationData = {
+                    body: "You have a new notification",
+                    title: payload.data.title || "New Notification",
+                    url: "/notifications",
+                    notificationId: "notification-" + Date.now(),
+                    timestamp: payload.data.timestamp || Date.now().toString(),
+                    type: "unknown"
+                };
+            }
+        } else {
+            // Handle non-encrypted notifications
+            console.log("Received non-encrypted notification");
+            notificationData = {
+                body: payload.data.body || "",
+                title: payload.data.title || "New Notification",
+                url: payload.data.url || "/notifications",
+                notificationId: payload.data.notificationId || ("notification-" + Date.now()),
+                timestamp: payload.data.timestamp || Date.now().toString(),
+                type: payload.data.type || "unknown"
+            };
+        }
         
-        console.log("Processed notification data:", notificationData);
+        console.log("Final notification data to process:", notificationData);
         
         // Process the notification
         processNotification(notificationData);
