@@ -188,8 +188,18 @@ class NotificationAppGatewayService
                 'type' => $type
             ];
             
+            // Convert notification data to strings for FCM compatibility
+            $notificationDataStrings = [
+                'title' => (string) $notificationData['title'],
+                'body' => (string) $notificationData['body'],
+                'url' => (string) $notificationData['url'],
+                'notificationId' => (string) $notificationData['notificationId'],
+                'timestamp' => (string) $notificationData['timestamp'],
+                'type' => (string) $notificationData['type']
+            ];
+            
             // Encrypt the notification payload
-            $encryptedPayload = \App\Facades\NotificationEncryption::encrypt($notificationData);
+            $encryptedPayload = \App\Facades\NotificationEncryption::encrypt($notificationDataStrings);
             
             // Using data-only message to avoid automatic notification display by FCM
             // This gives full control to the service worker
@@ -202,7 +212,12 @@ class NotificationAppGatewayService
                         'token' => $userToken,
                         // Remove the 'notification' field to prevent automatic display
                         // Instead, put all notification data in the data field
-                        'data' => $encryptedPayload,
+                        'data' => [
+                            'encrypted' => 'true', // String for FCM compatibility
+                            'data' => $encryptedPayload['data'],
+                            'iv' => $encryptedPayload['iv'],
+                            'timestamp' => (string) time()
+                        ],
                     ],
                 ]);
             
