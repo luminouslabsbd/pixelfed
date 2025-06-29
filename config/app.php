@@ -161,6 +161,7 @@ return [
         App\Providers\RouteServiceProvider::class,
         // App\Providers\TelescopeServiceProvider::class,
         App\Providers\PassportServiceProvider::class,
+        App\Providers\NotificationServiceProvider::class,
 
     ],
 
@@ -215,6 +216,7 @@ return [
         'Purify'       => Stevebauman\Purify\Facades\Purify::class,
         'FFMpeg'       => Pbmedia\LaravelFFMpeg\FFMpegFacade::class,
         'Captcha'      => Buzz\LaravelHCaptcha\CaptchaFacade::class,
+        'NotificationEncryption' => App\Facades\NotificationEncryption::class,
     ],
 
 ];

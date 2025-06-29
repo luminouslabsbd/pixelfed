@@ -21,6 +21,9 @@ Route::post('api/auth/app-code-verify', 'AppRegisterController@verifyCode')->mid
 Route::post('api/auth/onboarding', 'AppRegisterController@onboarding')->middleware('throttle:app-code-verify');
 Route::get('storage/m/_v2/{pid}/{mhash}/{uhash}/{f}', 'MediaController@fallbackRedirect');
 
+// Encrypted API endpoints
+Route::post('api/v1/encrypted/request', 'Api\EncryptedRequestController@handleEncryptedRequest');
+
 Route::prefix('api/v0/groups')->middleware($middleware)->group(function () {
     Route::get('config', 'Groups\GroupsApiController@getConfig');
     Route::post('permission/create', 'Groups\CreateGroupsController@checkCreatePermission');

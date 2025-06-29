@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Http;
 use App\User;
 use Google\Auth\Credentials\ServiceAccountCredentials;
 use Illuminate\Support\Facades\Log;
+use App\Services\NotificationEncryptionService;
 
 class NotificationAppGatewayService
 {
@@ -177,6 +178,19 @@ class NotificationAppGatewayService
             // Create a unique notification ID to prevent duplicates
             $notificationId = md5($type . $actor . $url . time());
             
+            // Create the notification payload
+            $notificationData = [
+                'title' => env('APP_NAME') ?? "Pixelfed",
+                'body' => self::bodyTitleMake($type, $actor),
+                'url' => $url,
+                'notificationId' => $notificationId,
+                'timestamp' => (string) time(),
+                'type' => $type
+            ];
+            
+            // Encrypt the notification payload
+            $encryptedPayload = \App\Facades\NotificationEncryption::encrypt($notificationData);
+            
             // Using data-only message to avoid automatic notification display by FCM
             // This gives full control to the service worker
             $response = Http::withToken($accessToken)
@@ -188,19 +202,15 @@ class NotificationAppGatewayService
                         'token' => $userToken,
                         // Remove the 'notification' field to prevent automatic display
                         // Instead, put all notification data in the data field
-                        'data' => [
-                            'title' => env('APP_NAME') ?? "Pixelfed",
-                            'body' => self::bodyTitleMake($type, $actor),
-                            'url' => $url,
-                            'notificationId' => $notificationId,
-                            'timestamp' => (string) time()
-                        ],
+                        'data' => $encryptedPayload,
                     ],
                 ]);
             
             \Log::info('FCM Notification sent: ' . json_encode([
                 'type' => $type,
-                'response' => $response->json()
+                'encrypted' => true,
+                'response' => $response->json(),
+                'encryptedPayload' => $encryptedPayload,     
             ]));
             
             return $response->json();
