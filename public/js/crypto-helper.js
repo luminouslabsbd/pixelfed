@@ -3,17 +3,40 @@
  */
 const CryptoHelper = {
     /**
-     * Convert a base64 string to an array buffer
+     * Convert base64 to array buffer
      * @param {string} base64 - Base64 encoded string
      * @returns {ArrayBuffer} - Array buffer
      */
     base64ToArrayBuffer(base64) {
-        const binaryString = atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+        try {
+            console.log('Converting base64 to ArrayBuffer, length:', base64.length);
+            
+            // Remove any whitespace and make sure we have clean base64
+            base64 = base64.replace(/\s/g, '');
+            
+            // Add padding if needed
+            while (base64.length % 4 !== 0) {
+                base64 += '=';
+            }
+            
+            console.log('Cleaned base64 string, length:', base64.length);
+            
+            const binaryString = atob(base64);
+            console.log('Binary string created, length:', binaryString.length);
+            
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            console.log('ArrayBuffer created, byteLength:', bytes.buffer.byteLength);
+            return bytes.buffer;
+        } catch (error) {
+            console.error('Error in base64ToArrayBuffer:', error);
+            console.error('Problematic base64 string (first 20 chars):', 
+                base64 ? base64.substring(0, 20) + '...' : 'undefined');
+            throw error;
         }
-        return bytes.buffer;
     },
 
     /**

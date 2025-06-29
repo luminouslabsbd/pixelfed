@@ -100,23 +100,35 @@ async function decryptNotificationPayload(encryptedData, iv) {
 
 // Function to get the encryption key
 function getEncryptionKey() {
-    // In a real implementation, you might get this from a secure source
-    // For demo purposes, we're using a hardcoded key
-    // WARNING: In production, use a proper key management system
-    console.log("Getting encryption key for notification decryption");
-    
-    // This key MUST match the NOTIFICATION_ENCRYPTION_KEY in the backend .env file
-    // If notifications aren't showing, ensure this matches the backend key
-    return "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
+    // In a real-world scenario, this should be securely stored
+    // For demo purposes, we're hardcoding the key (same as in .env)
+    const key = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
+    console.log('Using encryption key (first few chars):', key.substring(0, 5) + '...');
+    return key;
 }
 
 // Process notification with either encrypted or non-encrypted data
 function processNotification(data) {
+    console.log('Processing notification data:', data);
+    
     const notificationBody = data.body || "";
     const notificationTitle = data.title || "New Notification";
     const notificationUrl = data.url || "/";
     const notificationId = data.notificationId || ("notification-" + Date.now());
     const timestamp = data.timestamp || Date.now().toString();
+    const notificationType = data.type || "unknown";
+    
+    console.log('Extracted notification fields:', {
+        body: notificationBody,
+        title: notificationTitle,
+        url: notificationUrl,
+        id: notificationId,
+        type: notificationType
+    });
+
+    // FORCE DISPLAY FOR TESTING - REMOVE THIS IN PRODUCTION
+    // This will bypass all filters to ensure notifications are displaying
+    const forceDisplay = true;
 
     // BLOCK LIST: Filter out any system notifications
     const blockTerms = [
@@ -137,16 +149,23 @@ function processNotification(data) {
             notificationTitle.toLowerCase().includes(term.toLowerCase())
     );
 
-    if (containsBlockedTerm) {
+    if (containsBlockedTerm && !forceDisplay) {
         console.log("Blocked system notification:", {
             title: notificationTitle,
             body: notificationBody,
         });
-        return; // Skip this notification entirely
+        return;
     }
 
     // ALLOW LIST: Only show notifications that match specific user interaction patterns
     const isUserInteraction =
+        notificationType === "like" ||
+        notificationType === "follow" ||
+        notificationType === "comment" ||
+        notificationType === "mention" ||
+        notificationType === "dm" ||
+        notificationType === "tag" ||
+        notificationType === "share" ||
         notificationBody.includes("liked") ||
         notificationBody.includes("followed") ||
         notificationBody.includes("commented") ||
@@ -155,8 +174,8 @@ function processNotification(data) {
         notificationBody.includes("tagged") ||
         notificationBody.includes("shared");
 
-    // Only proceed with user interaction notifications
-    if (isUserInteraction) {
+    // Only proceed with user interaction notifications or if force display is enabled
+    if (isUserInteraction || forceDisplay) {
         const notificationOptions = {
             body: notificationBody,
             icon: "/img/logo/pwa/192.png",
@@ -165,7 +184,9 @@ function processNotification(data) {
             data: {
                 url: notificationUrl,
                 timestamp: timestamp,
+                type: notificationType
             },
+            requireInteraction: true
         };
 
         // Check for duplicate notifications
@@ -177,12 +198,18 @@ function processNotification(data) {
             self.displayedNotifications = displayedNotifications;
 
             // Display the notification
+            console.log('Showing notification with options:', notificationOptions);
             self.registration.showNotification(
                 notificationTitle,
                 notificationOptions
-            );
+            ).then(() => {
+                console.log('Notification displayed successfully');
+            }).catch(error => {
+                console.error('Error showing notification:', error);
+            });
+            
             console.log(
-                "Displayed user interaction notification:",
+                "Displayed notification:",
                 notificationBody
             );
         } else {
@@ -210,81 +237,84 @@ messaging.onBackgroundMessage(async function (payload) {
     if (payload.data) {
         console.log("FCM payload data received:", payload.data);
         
-        let notificationData;
+        // TEMPORARY: Force display all notifications for testing
+        const forceDisplay = true;
+        
+        // Create a basic notification with the available data
+        let notificationData = {
+            body: payload.data.body || "You have a new notification",
+            title: payload.data.title || "New Notification",
+            url: payload.data.url || "/notifications",
+            notificationId: payload.data.notificationId || ("notification-" + Date.now()),
+            timestamp: payload.data.timestamp || Date.now().toString(),
+            type: payload.data.type || "like"
+        };
         
         // Check if the notification is encrypted
         if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
             console.log("Received encrypted notification, attempting to decrypt");
-            console.log("Encrypted data:", {
-                data: payload.data.data.substring(0, 20) + '...',
-                iv: payload.data.iv,
-                encrypted: payload.data.encrypted
-            });
+            console.log("Raw encrypted data:", payload.data.data);
+            console.log("Raw IV:", payload.data.iv);
             
             try {
-                // Decrypt the data
+                // Try to decrypt the data
                 const decryptedData = await decryptNotificationPayload(payload.data.data, payload.data.iv);
                 
                 if (decryptedData) {
                     console.log("Successfully decrypted notification data:", decryptedData);
                     
-                    // Combine decrypted data with non-encrypted fields
-                    notificationData = {
-                        body: decryptedData.body || "You have a new notification",
-                        url: decryptedData.url || "/notifications",
-                        notificationId: decryptedData.notificationId || ("notification-" + Date.now()),
-                        type: decryptedData.type || "unknown",
-                        title: payload.data.title || "New Notification",
-                        timestamp: payload.data.timestamp || Date.now().toString()
-                    };
+                    // Update notification data with decrypted fields
+                    if (decryptedData.body) notificationData.body = decryptedData.body;
+                    if (decryptedData.url) notificationData.url = decryptedData.url;
+                    if (decryptedData.notificationId) notificationData.notificationId = decryptedData.notificationId;
+                    if (decryptedData.type) notificationData.type = decryptedData.type;
                     
-                    console.log("Final notification data after decryption:", notificationData);
+                    console.log("Updated notification data with decrypted fields:", notificationData);
                 } else {
                     console.error("Failed to decrypt notification data, using fallback");
-                    // Fallback to basic notification if decryption fails
-                    notificationData = {
-                        body: "You have a new notification",
-                        title: payload.data.title || "New Notification",
-                        url: "/notifications",
-                        notificationId: "notification-" + Date.now(),
-                        timestamp: payload.data.timestamp || Date.now().toString(),
-                        type: "unknown"
-                    };
                 }
             } catch (error) {
                 console.error("Error decrypting notification:", error);
                 console.error("Error details:", { 
                     message: error.message, 
-                    name: error.name 
+                    name: error.name,
+                    stack: error.stack 
                 });
-                
-                // Fallback to basic notification if decryption fails
-                notificationData = {
-                    body: "You have a new notification",
-                    title: payload.data.title || "New Notification",
-                    url: "/notifications",
-                    notificationId: "notification-" + Date.now(),
-                    timestamp: payload.data.timestamp || Date.now().toString(),
-                    type: "unknown"
-                };
             }
-        } else {
-            // Handle non-encrypted notifications
-            console.log("Received non-encrypted notification");
-            notificationData = {
-                body: payload.data.body || "",
-                title: payload.data.title || "New Notification",
-                url: payload.data.url || "/notifications",
-                notificationId: payload.data.notificationId || ("notification-" + Date.now()),
-                timestamp: payload.data.timestamp || Date.now().toString(),
-                type: payload.data.type || "unknown"
-            };
         }
         
         console.log("Final notification data to process:", notificationData);
         
-        // Process the notification
-        processNotification(notificationData);
+        // TEMPORARY: Force display for testing
+        if (forceDisplay) {
+            // Display a basic notification directly without filtering
+            const notificationOptions = {
+                body: notificationData.body || "You have a new notification",
+                icon: "/img/logo/pwa/192.png",
+                tag: notificationData.notificationId || "notification-" + Date.now(),
+                vibrate: [100, 50, 100],
+                data: {
+                    url: notificationData.url || "/notifications",
+                    timestamp: notificationData.timestamp || Date.now().toString(),
+                    type: notificationData.type || "like"
+                },
+                requireInteraction: true
+            };
+            
+            console.log("FORCING notification display with options:", notificationOptions);
+            
+            self.registration.showNotification(
+                notificationData.title || "New Notification",
+                notificationOptions
+            ).then(() => {
+                console.log("Notification displayed successfully");
+            }).catch(error => {
+                console.error("Error showing notification:", error);
+            });
+        } else {
+            // Process the notification through normal filters
+            processNotification(notificationData);
+        }
     } else {
         console.warn("Received payload without data", payload);
     }
