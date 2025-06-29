@@ -61,6 +61,11 @@ const messaging = firebase.messaging();
 // Function to decrypt notification payload
 async function decryptNotificationPayload(encryptedData, iv) {
     try {
+        console.log('Starting decryption process with:', { 
+            encryptedDataLength: encryptedData.length,
+            ivLength: iv.length 
+        });
+        
         // Get the encryption key from localStorage or a secure source
         const key = getEncryptionKey();
         
@@ -69,11 +74,26 @@ async function decryptNotificationPayload(encryptedData, iv) {
             return null;
         }
         
+        console.log('Using encryption key (first few chars):', key.substring(0, 5) + '...');
+        
         // Decrypt the data
+        console.log('Calling CryptoHelper.decrypt...');
         const decryptedData = await CryptoHelper.decrypt(encryptedData, iv, key);
-        return decryptedData;
+        
+        if (decryptedData) {
+            console.log('Decryption successful, got data:', decryptedData);
+            return decryptedData;
+        } else {
+            console.error('Decryption returned null');
+            return null;
+        }
     } catch (error) {
-        console.error("Decryption error:", error);
+        console.error("Decryption error in decryptNotificationPayload:", error);
+        console.error("Error details:", { 
+            message: error.message, 
+            name: error.name,
+            stack: error.stack 
+        });
         return null;
     }
 }
@@ -195,6 +215,11 @@ messaging.onBackgroundMessage(async function (payload) {
         // Check if the notification is encrypted
         if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
             console.log("Received encrypted notification, attempting to decrypt");
+            console.log("Encrypted data:", {
+                data: payload.data.data.substring(0, 20) + '...',
+                iv: payload.data.iv,
+                encrypted: payload.data.encrypted
+            });
             
             try {
                 // Decrypt the data
@@ -205,10 +230,15 @@ messaging.onBackgroundMessage(async function (payload) {
                     
                     // Combine decrypted data with non-encrypted fields
                     notificationData = {
-                        ...decryptedData,
+                        body: decryptedData.body || "You have a new notification",
+                        url: decryptedData.url || "/notifications",
+                        notificationId: decryptedData.notificationId || ("notification-" + Date.now()),
+                        type: decryptedData.type || "unknown",
                         title: payload.data.title || "New Notification",
                         timestamp: payload.data.timestamp || Date.now().toString()
                     };
+                    
+                    console.log("Final notification data after decryption:", notificationData);
                 } else {
                     console.error("Failed to decrypt notification data, using fallback");
                     // Fallback to basic notification if decryption fails
@@ -223,6 +253,11 @@ messaging.onBackgroundMessage(async function (payload) {
                 }
             } catch (error) {
                 console.error("Error decrypting notification:", error);
+                console.error("Error details:", { 
+                    message: error.message, 
+                    name: error.name 
+                });
+                
                 // Fallback to basic notification if decryption fails
                 notificationData = {
                     body: "You have a new notification",

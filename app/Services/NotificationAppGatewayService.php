@@ -251,9 +251,10 @@ class NotificationAppGatewayService
                 
             // Log the response for debugging
             $responseData = $response->json();
-            \Log::info('FCM Notification sent:', [
+            \Log::info('FCM Notification sent Final:', [
                 'type' => $type,
-                'response' => $responseData
+                'response' => $responseData,
+                'notificationData' => $notificationData
             ]);
             
             return $response->json();

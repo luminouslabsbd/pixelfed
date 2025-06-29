@@ -91,42 +91,84 @@ const CryptoHelper = {
      */
     async decrypt(encryptedData, iv, key) {
         try {
-            console.log('Decryption started with:', { encryptedData, iv, key: key ? '***' : 'missing' });
-            
-            // Convert base64 to array buffer
-            const encryptedBuffer = this.base64ToArrayBuffer(encryptedData);
-            const ivBuffer = this.base64ToArrayBuffer(iv);
-            
-            console.log('Buffers created:', { 
-                encryptedBufferLength: encryptedBuffer.byteLength,
-                ivBufferLength: ivBuffer.byteLength 
+            console.log('Decryption started with:', { 
+                encryptedDataLength: encryptedData ? encryptedData.length : 0, 
+                ivLength: iv ? iv.length : 0, 
+                keyLength: key ? key.length : 0 
             });
             
+            if (!encryptedData || !iv || !key) {
+                console.error('Missing required parameters for decryption');
+                return null;
+            }
+            
+            // Ensure we have clean base64 strings
+            encryptedData = encryptedData.trim();
+            iv = iv.trim();
+            
+            // Convert base64 to array buffer
+            try {
+                var encryptedBuffer = this.base64ToArrayBuffer(encryptedData);
+                var ivBuffer = this.base64ToArrayBuffer(iv);
+                
+                console.log('Buffers created:', { 
+                    encryptedBufferLength: encryptedBuffer.byteLength,
+                    ivBufferLength: ivBuffer.byteLength 
+                });
+            } catch (bufferError) {
+                console.error('Error creating buffers:', bufferError);
+                return null;
+            }
+            
             // Derive the key
-            const cryptoKey = await this.deriveKey(key);
-            console.log('Key derived successfully');
+            try {
+                var cryptoKey = await this.deriveKey(key);
+                console.log('Key derived successfully');
+            } catch (keyError) {
+                console.error('Error deriving key:', keyError);
+                return null;
+            }
             
             // Decrypt the data
-            console.log('Attempting decryption...');
-            const decryptedBuffer = await crypto.subtle.decrypt(
-                {
-                    name: 'AES-CBC',
-                    iv: ivBuffer
-                },
-                cryptoKey,
-                encryptedBuffer
-            );
+            console.log('Attempting decryption with AES-CBC...');
+            let decryptedBuffer;
+            try {
+                decryptedBuffer = await crypto.subtle.decrypt(
+                    {
+                        name: 'AES-CBC',
+                        iv: ivBuffer
+                    },
+                    cryptoKey,
+                    encryptedBuffer
+                );
+                
+                console.log('Decryption successful, buffer size:', decryptedBuffer.byteLength);
+            } catch (decryptError) {
+                console.error('Error during decryption operation:', decryptError);
+                return null;
+            }
             
-            console.log('Decryption successful, buffer size:', decryptedBuffer.byteLength);
+            // Convert the decrypted buffer to a string
+            let decryptedString;
+            try {
+                decryptedString = this.arrayBufferToString(decryptedBuffer);
+                console.log('Decrypted string (first 100 chars):', 
+                    decryptedString.substring(0, Math.min(100, decryptedString.length)));
+            } catch (stringError) {
+                console.error('Error converting buffer to string:', stringError);
+                return null;
+            }
             
-            // Convert the decrypted buffer to a string and parse as JSON
-            const decryptedString = this.arrayBufferToString(decryptedBuffer);
-            console.log('Decrypted string (first 100 chars):', decryptedString.substring(0, 100));
-            
-            const parsedData = JSON.parse(decryptedString);
-            console.log('JSON parsed successfully:', parsedData);
-            
-            return parsedData;
+            // Parse as JSON
+            try {
+                const parsedData = JSON.parse(decryptedString);
+                console.log('JSON parsed successfully:', parsedData);
+                return parsedData;
+            } catch (jsonError) {
+                console.error('Error parsing JSON:', jsonError);
+                console.log('Raw decrypted content:', decryptedString);
+                return null;
+            }
         } catch (error) {
             console.error('Decryption error:', error);
             console.error('Error details:', { 
