@@ -86,19 +86,20 @@ class NotificationEncryptionService
             }
             
             // Return the encrypted data and IV
+            // IMPORTANT: FCM requires all data values to be strings
             return [
-                'encrypted' => true,
+                'encrypted' => 'true', // Convert boolean to string for FCM compatibility
                 'data' => base64_encode($encrypted),
                 'iv' => base64_encode($iv),
-                'timestamp' => time()
+                'timestamp' => (string) time() // Convert timestamp to string for FCM compatibility
             ];
         } catch (Exception $e) {
             Log::error('Notification encryption failed: ' . $e->getMessage());
             
             // Return the original data if encryption fails
             return [
-                'encrypted' => false,
-                'data' => $data,
+                'encrypted' => 'false', // Convert boolean to string for FCM compatibility
+                'data' => json_encode($data), // Convert data to JSON string
                 'error' => 'Encryption failed'
             ];
         }
