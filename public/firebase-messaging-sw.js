@@ -1,11 +1,14 @@
 // Service worker version - increment this when making important changes
-const SW_VERSION = "1.0.0";
+const SW_VERSION = "1.1.0";
 
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
 );
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js"
+);
+importScripts(
+    "/js/crypto-helper.js"
 );
 
 // Install event: Do NOT call skipWaiting()
@@ -43,8 +46,129 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Function to decrypt notification payload
+async function decryptNotificationPayload(encryptedData, iv) {
+    try {
+        // Get the encryption key from localStorage or a secure source
+        const key = getEncryptionKey();
+        
+        if (!key) {
+            console.error("Encryption key not found");
+            return null;
+        }
+        
+        // Decrypt the data
+        const decryptedData = await CryptoHelper.decrypt(encryptedData, iv, key);
+        return decryptedData;
+    } catch (error) {
+        console.error("Decryption error:", error);
+        return null;
+    }
+}
+
+// Function to get the encryption key
+function getEncryptionKey() {
+    // In a real implementation, you might get this from a secure source
+    // For demo purposes, we're using a hardcoded key
+    // WARNING: In production, use a proper key management system
+    console.log("Getting encryption key for notification decryption");
+    
+    // This key MUST match the NOTIFICATION_ENCRYPTION_KEY in the backend .env file
+    // If notifications aren't showing, ensure this matches the backend key
+    return "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
+}
+
+// Process notification with either encrypted or non-encrypted data
+function processNotification(data) {
+    const notificationBody = data.body || "";
+    const notificationTitle = data.title || "New Notification";
+    const notificationUrl = data.url || "/";
+    const notificationId = data.notificationId || ("notification-" + Date.now());
+    const timestamp = data.timestamp || Date.now().toString();
+
+    // BLOCK LIST: Filter out any system notifications
+    const blockTerms = [
+        "updated",
+        "background",
+        "new version",
+        "refresh",
+        "reload",
+        "restart",
+        "update available",
+        "has been updated",
+    ];
+
+    // Check if notification contains any blocked terms
+    const containsBlockedTerm = blockTerms.some(
+        (term) =>
+            notificationBody.toLowerCase().includes(term.toLowerCase()) ||
+            notificationTitle.toLowerCase().includes(term.toLowerCase())
+    );
+
+    if (containsBlockedTerm) {
+        console.log("Blocked system notification:", {
+            title: notificationTitle,
+            body: notificationBody,
+        });
+        return; // Skip this notification entirely
+    }
+
+    // ALLOW LIST: Only show notifications that match specific user interaction patterns
+    const isUserInteraction =
+        notificationBody.includes("liked") ||
+        notificationBody.includes("followed") ||
+        notificationBody.includes("commented") ||
+        notificationBody.includes("mentioned") ||
+        notificationBody.includes("message") ||
+        notificationBody.includes("tagged") ||
+        notificationBody.includes("shared");
+
+    // Only proceed with user interaction notifications
+    if (isUserInteraction) {
+        const notificationOptions = {
+            body: notificationBody,
+            icon: "/img/logo/pwa/192.png",
+            tag: notificationId,
+            vibrate: [100, 50, 100],
+            data: {
+                url: notificationUrl,
+                timestamp: timestamp,
+            },
+        };
+
+        // Check for duplicate notifications
+        const notificationKey = `notification-${notificationId}`;
+        const displayedNotifications = self.displayedNotifications || {};
+
+        if (!displayedNotifications[notificationKey]) {
+            displayedNotifications[notificationKey] = true;
+            self.displayedNotifications = displayedNotifications;
+
+            // Display the notification
+            self.registration.showNotification(
+                notificationTitle,
+                notificationOptions
+            );
+            console.log(
+                "Displayed user interaction notification:",
+                notificationBody
+            );
+        } else {
+            console.log(
+                "Prevented duplicate notification:",
+                notificationKey
+            );
+        }
+    } else {
+        console.log(
+            "Skipped non-user interaction notification:",
+            notificationBody
+        );
+    }
+}
+
 // Intercept all messages before they become notifications
-messaging.onBackgroundMessage(function (payload) {
+messaging.onBackgroundMessage(async function (payload) {
     console.log(
         "[firebase-messaging-sw.js] Received background message",
         payload
@@ -52,89 +176,60 @@ messaging.onBackgroundMessage(function (payload) {
 
     // Check if we have data in the payload
     if (payload.data) {
-        const notificationBody = payload.data.body || "";
-        const notificationTitle = payload.data.title || "New Notification";
-
-        // BLOCK LIST: Filter out any system notifications
-        const blockTerms = [
-            "updated",
-            "background",
-            "new version",
-            "refresh",
-            "reload",
-            "restart",
-            "update available",
-            "has been updated",
-        ];
-
-        // Check if notification contains any blocked terms
-        const containsBlockedTerm = blockTerms.some(
-            (term) =>
-                notificationBody.toLowerCase().includes(term.toLowerCase()) ||
-                notificationTitle.toLowerCase().includes(term.toLowerCase())
-        );
-
-        if (containsBlockedTerm) {
-            console.log("Blocked system notification:", {
-                title: notificationTitle,
-                body: notificationBody,
-            });
-            return; // Skip this notification entirely
-        }
-
-        // ALLOW LIST: Only show notifications that match specific user interaction patterns
-        const isUserInteraction =
-            notificationBody.includes("liked") ||
-            notificationBody.includes("followed") ||
-            notificationBody.includes("commented") ||
-            notificationBody.includes("mentioned") ||
-            notificationBody.includes("message") ||
-            notificationBody.includes("tagged") ||
-            notificationBody.includes("shared");
-
-        // Only proceed with user interaction notifications
-        if (isUserInteraction) {
-            const notificationTitle = payload.data.title || "New Notification";
-            const notificationOptions = {
-                body: notificationBody,
-                icon: "/img/logo/pwa/192.png",
-                tag:
-                    payload.data.notificationId || "notification-" + Date.now(),
-                vibrate: [100, 50, 100],
-                data: {
-                    url: payload.data.url || "/",
-                    timestamp: payload.data.timestamp || Date.now().toString(),
-                },
-            };
-
-            // Check for duplicate notifications
-            const notificationKey = `notification-${payload.data.notificationId}`;
-            const displayedNotifications = self.displayedNotifications || {};
-
-            if (!displayedNotifications[notificationKey]) {
-                displayedNotifications[notificationKey] = true;
-                self.displayedNotifications = displayedNotifications;
-
-                // Display the notification
-                self.registration.showNotification(
-                    notificationTitle,
-                    notificationOptions
+        console.log("FCM payload data received:", payload.data);
+        // Check if the payload is encrypted
+        // Handle both boolean and string values for compatibility
+        if (payload.data.encrypted === true || payload.data.encrypted === "true") {
+            try {
+                console.log("Attempting to decrypt payload:", {
+                    data: payload.data.data,
+                    iv: payload.data.iv,
+                    encrypted: payload.data.encrypted,
+                    timestamp: payload.data.timestamp
+                });
+                
+                // Decrypt the payload
+                const decryptedData = await decryptNotificationPayload(
+                    payload.data.data,
+                    payload.data.iv
                 );
-                console.log(
-                    "Displayed user interaction notification:",
-                    notificationBody
-                );
-            } else {
-                console.log(
-                    "Prevented duplicate notification:",
-                    notificationKey
-                );
+                
+                if (!decryptedData) {
+                    console.error("Failed to decrypt notification payload");
+                    // Fallback to showing the raw notification
+                    processNotification(payload.data);
+                    return;
+                }
+                
+                console.log("Successfully decrypted data:", decryptedData);
+                
+                // Process the notification with decrypted data
+                // Log the full decrypted data for debugging
+                console.log("Full decrypted notification data:", decryptedData);
+                
+                processNotification({
+                    body: decryptedData.body || "",
+                    title: decryptedData.title || "New Notification",
+                    url: decryptedData.url || "/",
+                    notificationId: decryptedData.notificationId || ("notification-" + Date.now()),
+                    timestamp: decryptedData.timestamp || Date.now().toString(),
+                    type: decryptedData.type || "unknown"
+                });
+            } catch (error) {
+                console.error("Error decrypting notification:", error);
+                // Fallback: Display a generic notification so the user still gets notified
+                console.log("Using fallback notification mechanism");
+                processNotification({
+                    body: "You have a new notification",
+                    title: "Pixelfed",
+                    url: "/notifications",
+                    notificationId: "fallback-" + Date.now(),
+                    timestamp: Date.now().toString()
+                });
             }
         } else {
-            console.log(
-                "Skipped non-user interaction notification:",
-                notificationBody
-            );
+            // Handle legacy non-encrypted notifications
+            processNotification(payload.data);
         }
     }
 });
