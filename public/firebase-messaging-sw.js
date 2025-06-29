@@ -1,5 +1,5 @@
 // Service worker version - increment this when making important changes
-const SW_VERSION = "1.0.0";
+const SW_VERSION = "1.3.0";
 
 importScripts(
     "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
