@@ -202,13 +202,7 @@ class NotificationAppGatewayService
                         'token' => $userToken,
                         // Remove the 'notification' field to prevent automatic display
                         // Instead, put all notification data in the data field
-                        // FCM requires all data values to be strings
-                        'data' => [
-                            'encrypted' => $encryptedPayload['encrypted'],
-                            'data' => $encryptedPayload['data'],
-                            'iv' => $encryptedPayload['iv'],
-                            'timestamp' => $encryptedPayload['timestamp']
-                        ],
+                        'data' => $encryptedPayload,
                     ],
                 ]);
             

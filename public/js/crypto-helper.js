@@ -91,14 +91,23 @@ const CryptoHelper = {
      */
     async decrypt(encryptedData, iv, key) {
         try {
+            console.log('Decryption started with:', { encryptedData, iv, key: key ? '***' : 'missing' });
+            
             // Convert base64 to array buffer
             const encryptedBuffer = this.base64ToArrayBuffer(encryptedData);
             const ivBuffer = this.base64ToArrayBuffer(iv);
             
+            console.log('Buffers created:', { 
+                encryptedBufferLength: encryptedBuffer.byteLength,
+                ivBufferLength: ivBuffer.byteLength 
+            });
+            
             // Derive the key
             const cryptoKey = await this.deriveKey(key);
+            console.log('Key derived successfully');
             
             // Decrypt the data
+            console.log('Attempting decryption...');
             const decryptedBuffer = await crypto.subtle.decrypt(
                 {
                     name: 'AES-CBC',
@@ -108,11 +117,23 @@ const CryptoHelper = {
                 encryptedBuffer
             );
             
+            console.log('Decryption successful, buffer size:', decryptedBuffer.byteLength);
+            
             // Convert the decrypted buffer to a string and parse as JSON
             const decryptedString = this.arrayBufferToString(decryptedBuffer);
-            return JSON.parse(decryptedString);
+            console.log('Decrypted string (first 100 chars):', decryptedString.substring(0, 100));
+            
+            const parsedData = JSON.parse(decryptedString);
+            console.log('JSON parsed successfully:', parsedData);
+            
+            return parsedData;
         } catch (error) {
             console.error('Decryption error:', error);
+            console.error('Error details:', { 
+                message: error.message, 
+                stack: error.stack,
+                name: error.name
+            });
             return null;
         }
     }
