@@ -222,12 +222,6 @@ class NotificationAppGatewayService
                 'response' => $responseData
             ]);
             
-            \Log::info('FCM Notification sent: ' . json_encode([
-                'type' => $type,
-                'encrypted' => true,
-                'response' => $response->json(),  
-            ]));
-            
             return $response->json();
         }
         
