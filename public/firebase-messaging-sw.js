@@ -25,9 +25,20 @@ if (typeof self !== 'undefined') {
     self.CryptoHelper = {
         async decryptString(encryptedData, iv, key) {
             try {
+                console.log("🔐 CryptoHelper.decryptString called with:", {
+                    encryptedDataLength: encryptedData ? encryptedData.length : 0,
+                    ivLength: iv ? iv.length : 0,
+                    keyLength: key ? key.length : 0
+                });
+
                 // Backend does single base64 encoding for individual strings
                 const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
                 const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+
+                console.log("📊 Buffer lengths:", {
+                    encryptedBufferLength: encryptedBuffer.length,
+                    ivBufferLength: ivBuffer.length
+                });
 
                 if (ivBuffer.length !== 16) {
                     console.error("❌ IV length is wrong! Expected 16, got:", ivBuffer.length);
@@ -35,12 +46,25 @@ if (typeof self !== 'undefined') {
                 }
 
                 // Process key EXACTLY the same way as backend: substr(hash('sha256', key), 0, 32)
+                // Backend: hash('sha256', key) produces 64 hex chars, then substr(0, 32) takes first 32 chars
+                // Those 32 hex chars represent 32 bytes when used as raw string in PHP openssl_encrypt
                 const encoder = new TextEncoder();
                 const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(key));
                 const hashArray = new Uint8Array(hashBuffer);
                 const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
-                const keyHex = hashHex.substring(0, 32);
-                const keyBytes = new Uint8Array(keyHex.match(/.{2}/g).map(byte => parseInt(byte, 16)));
+
+                // Take first 32 characters from hex string (this matches PHP's substr(hash('sha256', key), 0, 32))
+                const keyString = hashHex.substring(0, 32);
+                // Convert string to bytes (PHP treats this string as raw bytes)
+                const keyBytes = new TextEncoder().encode(keyString);
+
+                console.log("🔑 Key processing:", {
+                    originalKeyLength: key.length,
+                    hashHexLength: hashHex.length,
+                    keyStringLength: keyString.length,
+                    keyBytesLength: keyBytes.length,
+                    keyString: keyString
+                });
 
                 // Import key for AES-256-CBC (same as backend)
                 const cryptoKey = await crypto.subtle.importKey(
@@ -60,10 +84,10 @@ if (typeof self !== 'undefined') {
 
                 // Convert to string (no JSON parsing for individual strings)
                 const decryptedString = new TextDecoder().decode(decryptedBuffer);
-                console.log("decryptedString:",decryptedString);
-                    decryptedString.substring(0, Math.min(100, decryptedString.length));
+                console.log("✅ Decryption successful! Result:", decryptedString.substring(0, Math.min(100, decryptedString.length)));
                 return decryptedString.trim() || null;
             } catch (error) {
+                console.error("❌ CryptoHelper decryption error:", error);
                 return null;
             }
         }
@@ -80,12 +104,21 @@ function getEncryptionKey() {
 // Function to decrypt individual string fields
 async function decryptString(encryptedData, iv) {
     try {
+        console.log("🔑 decryptString called with:", {
+            encryptedDataLength: encryptedData ? encryptedData.length : 0,
+            ivLength: iv ? iv.length : 0,
+            encryptedDataPreview: encryptedData ? encryptedData.substring(0, 20) + "..." : "null",
+            ivPreview: iv ? iv.substring(0, 20) + "..." : "null"
+        });
+
         const key = getEncryptionKey();
 
         if (!key) {
-            console.error('Encryption key not found');
+            console.error('❌ Encryption key not found');
             return null;
         }
+
+        console.log("🔑 Using encryption key:", key.substring(0, 10) + "...");
 
         // Decrypt the string
         const decryptedString = await CryptoHelper.decryptString(encryptedData, iv, key);
@@ -168,19 +201,35 @@ messaging.onBackgroundMessage(async (payload) => {
             notificationData.type = payload.data.type || "like";
 
             try {
+                console.log("🔓 Starting decryption process...");
+                console.log("📦 Payload data:", {
+                    hasBody: !!payload.data.body,
+                    hasBodyIv: !!payload.data.body_iv,
+                    hasUrl: !!payload.data.url,
+                    hasUrlIv: !!payload.data.url_iv,
+                    bodyLength: payload.data.body ? payload.data.body.length : 0,
+                    bodyIvLength: payload.data.body_iv ? payload.data.body_iv.length : 0
+                });
+
                 // Decrypt body
                 if (payload.data.body && payload.data.body_iv) {
+                    console.log("🔓 Attempting to decrypt body...");
                     const decryptedBody = await decryptString(payload.data.body, payload.data.body_iv);
+                    console.log("✅ Body decryption result:", decryptedBody ? "SUCCESS" : "FAILED");
                     notificationData.body = decryptedBody || "You have a new notification (body decryption failed)";
                 } else {
+                    console.log("⚠️ No encrypted body data found");
                     notificationData.body = "You have a new notification (no encrypted body)";
                 }
 
                 // Decrypt url
                 if (payload.data.url && payload.data.url_iv) {
+                    console.log("🔓 Attempting to decrypt URL...");
                     const decryptedUrl = await decryptString(payload.data.url, payload.data.url_iv);
+                    console.log("✅ URL decryption result:", decryptedUrl ? "SUCCESS" : "FAILED");
                     notificationData.url = decryptedUrl || "/notifications";
                 } else {
+                    console.log("⚠️ No encrypted URL data found");
                     notificationData.url = "/notifications";
                 }
 
