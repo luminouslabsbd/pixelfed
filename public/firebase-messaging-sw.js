@@ -1,5 +1,5 @@
 // Firebase Messaging Service Worker
-const SW_VERSION = '1.0.0';
+const SW_VERSION = '1.0.9';
 
 // Initialize Firebase Messaging
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
@@ -104,14 +104,14 @@ function getEncryptionKey() {
     return key;
 }
 
-// Function to decrypt individual string fields
+// Function to decrypt individual string fields - Updated v1.0.9
 async function decryptString(encryptedData, iv) {
     try {
-        console.log("🔑 decryptString called with:", {
+        console.log("🔑 decryptString v1.0.9 called with:", {
+            encryptedData: encryptedData,
             encryptedDataLength: encryptedData ? encryptedData.length : 0,
-            ivLength: iv ? iv.length : 0,
-            encryptedDataPreview: encryptedData ? encryptedData.substring(0, 20) + "..." : "null",
-            ivPreview: iv ? iv.substring(0, 20) + "..." : "null"
+            iv: iv,
+            ivLength: iv ? iv.length : 0
         });
 
         const key = getEncryptionKey();
@@ -123,16 +123,29 @@ async function decryptString(encryptedData, iv) {
 
         console.log("🔑 Using encryption key:", key.substring(0, 10) + "...");
 
+        // Clean base64 strings - remove any whitespace that might cause issues
+        let cleanEncryptedData = encryptedData.replace(/\s/g, '');
+        let cleanIv = iv.replace(/\s/g, '');
+
+        console.log("🧹 Cleaned base64 strings:", {
+            originalEncrypted: encryptedData,
+            cleanedEncrypted: cleanEncryptedData,
+            originalIv: iv,
+            cleanedIv: cleanIv
+        });
+
         // Decrypt the string
-        const decryptedString = await CryptoHelper.decryptString(encryptedData, iv, key);
+        const decryptedString = await CryptoHelper.decryptString(cleanEncryptedData, cleanIv, key);
 
         if (decryptedString) {
+            console.log("✅ Decryption successful:", decryptedString);
             return decryptedString;
         } else {
+            console.error("❌ Decryption returned null");
             return null;
         }
     } catch (error) {
-        console.error('Error in decryptString:', error);
+        console.error('❌ Error in decryptString v1.0.9:', error);
         return null;
     }
 }
