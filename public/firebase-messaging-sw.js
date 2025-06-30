@@ -34,19 +34,41 @@ try {
         self.CryptoHelper = {
             async decrypt(encryptedData, iv, key) {
                 try {
-                    console.log("Using inline crypto helper fallback");
+                    console.log("=== DECRYPTION DEBUG ===");
+                    console.log("Input encryptedData:", encryptedData);
+                    console.log("Input IV:", iv);
+                    console.log("Input key:", key);
 
-                    // Convert base64 to array buffer
+                    // Convert base64 to array buffer (exactly like backend)
+                    console.log("Converting base64 to buffers...");
                     const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
                     const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
 
-                    // Process key the same way as backend
+                    console.log("Encrypted buffer length:", encryptedBuffer.length);
+                    console.log("IV buffer length:", ivBuffer.length);
+
+                    // Process key EXACTLY the same way as backend: substr(hash('sha256', key), 0, 32)
+                    // Backend does: substr(hash('sha256', $key), 0, 32) - first 32 CHARACTERS of hex string
+                    console.log("Processing key exactly like backend...");
                     const encoder = new TextEncoder();
                     const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(key));
                     const hashArray = new Uint8Array(hashBuffer);
-                    const keyBytes = hashArray.slice(0, 32);
 
-                    // Import key
+                    // Convert to hex string like PHP hash() function
+                    const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+                    console.log("Full hash hex:", hashHex);
+
+                    // Take first 32 characters of hex string (like backend)
+                    const keyHex = hashHex.substring(0, 32);
+                    console.log("Key hex (32 chars):", keyHex);
+
+                    // Convert hex string back to bytes for crypto API
+                    const keyBytes = new Uint8Array(keyHex.match(/.{2}/g).map(byte => parseInt(byte, 16)));
+
+                    console.log("Key hash (first 10 bytes):", Array.from(keyBytes.slice(0, 10)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+
+                    // Import key for AES-256-CBC (same as backend)
+                    console.log("Importing crypto key...");
                     const cryptoKey = await crypto.subtle.importKey(
                         'raw',
                         keyBytes,
@@ -55,18 +77,31 @@ try {
                         ['decrypt']
                     );
 
-                    // Decrypt
+                    // Decrypt using AES-256-CBC (same as backend)
+                    console.log("Performing decryption...");
                     const decryptedBuffer = await crypto.subtle.decrypt(
                         { name: 'AES-CBC', iv: ivBuffer },
                         cryptoKey,
                         encryptedBuffer
                     );
 
+                    console.log("Decryption successful, buffer size:", decryptedBuffer.byteLength);
+
                     // Convert to string and parse JSON
                     const decryptedString = new TextDecoder().decode(decryptedBuffer);
-                    return JSON.parse(decryptedString);
+                    console.log("Decrypted string:", decryptedString);
+
+                    const parsedData = JSON.parse(decryptedString);
+                    console.log("Parsed JSON data:", parsedData);
+                    console.log("=== DECRYPTION SUCCESS ===");
+
+                    return parsedData;
                 } catch (error) {
+                    console.error("=== DECRYPTION FAILED ===");
                     console.error("Inline crypto helper error:", error);
+                    console.error("Error name:", error.name);
+                    console.error("Error message:", error.message);
+                    console.error("Error stack:", error.stack);
                     return null;
                 }
             }
@@ -78,6 +113,16 @@ try {
 
 // Final check of CryptoHelper availability
 console.log("Final CryptoHelper check:", typeof CryptoHelper !== 'undefined' ? "Available" : "Not available");
+
+// Test decryption capability when service worker loads
+if (typeof CryptoHelper !== 'undefined') {
+    testDecryptionWithBackendData();
+
+    // Also test notification processing after a short delay
+    setTimeout(() => {
+        testNotificationProcessing();
+    }, 1000);
+}
 
 // Install event: Do NOT call skipWaiting()
 self.addEventListener("install", (event) => {
@@ -176,8 +221,10 @@ async function decryptNotificationPayload(encryptedData, iv) {
 function getEncryptionKey() {
     // In a real-world scenario, this should be securely stored
     // For demo purposes, we're hardcoding the key (same as in .env)
+    // This MUST match the NOTIFICATION_ENCRYPTION_KEY in your backend .env
     const key = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
     console.log('Using encryption key (first few chars):', key.substring(0, 5) + '...');
+    console.log('Expected processed key should be: cb620401cb4d6507fff3ef891590214e');
     return key;
 }
 
@@ -548,6 +595,113 @@ function testNotificationDisplay() {
         console.error('Error displaying test notification:', error);
     }
 }
+
+// Test function to verify decryption with backend-like data
+async function testDecryptionWithBackendData() {
+    console.log('=== TESTING DECRYPTION WITH BACKEND-LIKE DATA ===');
+
+    try {
+        // Test if CryptoHelper can decrypt
+        if (typeof CryptoHelper !== 'undefined') {
+            const testKey = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
+
+            console.log('Testing key processing to match backend...');
+            console.log('CryptoHelper available:', typeof CryptoHelper);
+
+            // Test the key processing (same as backend)
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(testKey));
+            const hashArray = new Uint8Array(hashBuffer);
+
+            // Convert to hex string like PHP hash() function
+            const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+            console.log('Full hash hex:', hashHex);
+
+            // Take first 32 characters of hex string (like backend)
+            const keyHex = hashHex.substring(0, 32);
+            console.log('Frontend processed key:', keyHex);
+            console.log('Backend processed key:  cb620401cb4d6507fff3ef891590214e');
+            console.log('Keys match:', keyHex === 'cb620401cb4d6507fff3ef891590214e');
+
+            if (keyHex === 'cb620401cb4d6507fff3ef891590214e') {
+                console.log('✅ KEY PROCESSING MATCHES BACKEND!');
+            } else {
+                console.error('❌ KEY PROCESSING DOES NOT MATCH BACKEND!');
+            }
+
+            // Test with real encrypted data from backend debug
+            console.log('\n--- Testing with real backend encrypted data ---');
+            const realEncryptedData = "aGhiZTRDRnVDWHUyNmtaNGxOK1B6aUUzWHVhSFp0RlhwUk9QTStoRFUyQXoveGUwL1JBR3BxVVdidWxyNWx3cVZPbkRDTlRHR1V1Y01iaXJNcGcwOUwrYkxTdHpKQVdaZWluNmx1QXRBWW12ZjRZUTRiakg3TUJ6T1hkYzU4T0xLa1dLU2xQUTlhQnZiRjlWS3VEL3E5WEtSZFVQT2VSRllhZzdkYVlQcHRDbDRTbit6LzQwcExwZW9ROHNEeW1zODFJQWlGWTk2QnJkalR3SFEwZGhJRkgyWDF2dzh4VkZQTjV6OXdjSEI5V01LWlhpcFJvbk1IOHE2NjBaRWJ0VQ==";
+            const realIV = "cUU723tP2Elrs6yIBekr+A==";
+
+            console.log('Attempting to decrypt real backend data...');
+            const decryptedReal = await CryptoHelper.decrypt(realEncryptedData, realIV, testKey);
+
+            if (decryptedReal) {
+                console.log('✅ REAL BACKEND DATA DECRYPTION SUCCESS!');
+                console.log('Decrypted data:', decryptedReal);
+            } else {
+                console.error('❌ REAL BACKEND DATA DECRYPTION FAILED!');
+            }
+
+            console.log('Decryption test completed - ready for real notifications');
+        } else {
+            console.error('CryptoHelper not available for testing');
+        }
+    } catch (error) {
+        console.error('Decryption test failed:', error);
+    }
+
+    console.log('=== END DECRYPTION TEST ===');
+}
+
+// Function to manually test notification processing
+async function testNotificationProcessing() {
+    console.log('=== TESTING NOTIFICATION PROCESSING ===');
+
+    // Test payload from backend
+    const testPayload = {
+        "title": "Test Encrypted Notification",
+        "timestamp": 1751260216,
+        "encrypted": "true",
+        "data": "aGhiZTRDRnVDWHUyNmtaNGxOK1B6aUUzWHVhSFp0RlhwUk9QTStoRFUyQXoveGUwL1JBR3BxVVdidWxyNWx3cVZPbkRDTlRHR1V1Y01iaXJNcGcwOUwrYkxTdHpKQVdaZWluNmx1QXRBWW12ZjRZUTRiakg3TUJ6T1hkYzU4T0xLa1dLU2xQUTlhQnZiRjlWS3VEL3E5WEtSZFVQT2VSRllhZzdkYVlQcHRDbDRTbit6LzQwcExwZW9ROHNEeW1zODFJQWlGWTk2QnJkalR3SFEwZGhJRkgyWDF2dzh4VkZQTjV6OXdjSEI5V01LWlhpcFJvbk1IOHE2NjBaRWJ0VQ==",
+        "iv": "cUU723tP2Elrs6yIBekr+A=="
+    };
+
+    console.log('Testing with payload:', testPayload);
+
+    try {
+        // Process the notification like it would come from FCM
+        const result = processNotification(testPayload);
+        console.log('Notification processing result:', result);
+
+        // Also test the decryption directly
+        if (testPayload.encrypted === 'true' && testPayload.data && testPayload.iv) {
+            console.log('Testing direct decryption...');
+            const decrypted = await decryptNotificationPayload(testPayload.data, testPayload.iv);
+            console.log('Direct decryption result:', decrypted);
+        }
+
+    } catch (error) {
+        console.error('Error testing notification processing:', error);
+    }
+
+    console.log('=== END NOTIFICATION PROCESSING TEST ===');
+}
+
+// Make test functions available globally for manual testing
+self.testDecryptionWithBackendData = testDecryptionWithBackendData;
+self.testNotificationProcessing = testNotificationProcessing;
+
+// Handle messages from the main thread
+self.addEventListener('message', (event) => {
+    console.log('Service worker received message:', event.data);
+
+    if (event.data && event.data.type === 'TEST_ENCRYPTED_NOTIFICATION') {
+        console.log('Running encrypted notification test...');
+        testNotificationProcessing();
+    }
+});
 
 // Expose test function for debugging
 self.testNotificationDisplay = testNotificationDisplay;
