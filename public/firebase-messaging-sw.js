@@ -23,21 +23,17 @@ const messaging = firebase.messaging();
 // Create inline crypto helper for decryption
 if (typeof self !== 'undefined') {
     self.CryptoHelper = {
-        async decrypt(encryptedData, iv, key) {
+        async decryptString(encryptedData, iv, key) {
             try {
-                // Backend does DOUBLE base64 encoding on encrypted data
-                // First decode to get the actual base64 encrypted data
-                const firstDecode = atob(encryptedData);
-                const encryptedBuffer = Uint8Array.from(atob(firstDecode), c => c.charCodeAt(0));
-                
-                // IV is single base64 encoded
+                // Backend does single base64 encoding for individual strings
+                const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
                 const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
-                
+
                 if (ivBuffer.length !== 16) {
                     console.error("❌ IV length is wrong! Expected 16, got:", ivBuffer.length);
                     return null;
                 }
-                   
+
                 // Process key EXACTLY the same way as backend: substr(hash('sha256', key), 0, 32)
                 const encoder = new TextEncoder();
                 const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(key));
@@ -62,19 +58,9 @@ if (typeof self !== 'undefined') {
                     encryptedBuffer
                 );
 
-                // Convert to string and parse JSON
+                // Convert to string (no JSON parsing for individual strings)
                 const decryptedString = new TextDecoder().decode(decryptedBuffer);
-                
-                if (!decryptedString.trim()) {
-                    return null;
-                }
-
-                try {
-                    const parsedData = JSON.parse(decryptedString);
-                    return parsedData;
-                } catch (jsonError) {
-                    return null;
-                }
+                return decryptedString.trim() || null;
             } catch (error) {
                 return null;
             }
@@ -89,29 +75,26 @@ function getEncryptionKey() {
     return key;
 }
 
-// Function to decrypt notification payload
-async function decryptNotificationPayload(encryptedData, iv) {
+// Function to decrypt individual string fields
+async function decryptString(encryptedData, iv) {
     try {
         const key = getEncryptionKey();
-        
+
         if (!key) {
             console.error('Encryption key not found');
             return null;
         }
 
-        // Decrypt the data
-        console.log('Calling CryptoHelper.decrypt...');
-        const decryptedData = await CryptoHelper.decrypt(encryptedData, iv, key);
+        // Decrypt the string
+        const decryptedString = await CryptoHelper.decryptString(encryptedData, iv, key);
 
-        if (decryptedData) {
-            console.log('Decryption successful, got data:', decryptedData);
-            return decryptedData;
+        if (decryptedString) {
+            return decryptedString;
         } else {
-            console.error('Decryption returned null');
             return null;
         }
     } catch (error) {
-        console.error('Error in decryptNotificationPayload:', error);
+        console.error('Error in decryptString:', error);
         return null;
     }
 }
@@ -175,9 +158,39 @@ messaging.onBackgroundMessage(async (payload) => {
         // Handle encrypted vs unencrypted notifications differently
         if (payload.data.encrypted === "true") {
             console.log("Processing ENCRYPTED notification from backend");
-            // For encrypted notifications, backend sends: title, timestamp, encrypted, data, iv
-            // The body, url, notificationId, type are encrypted in payload.data.data
-            // Don't set defaults yet - wait for decryption
+            // For encrypted notifications, backend sends: title, body (encrypted), body_iv, url (encrypted), url_iv, notificationId, timestamp, type, encrypted
+            // We need to decrypt body and url individually
+
+            // Set unencrypted fields first
+            notificationData.notificationId = payload.data.notificationId || ("notification-" + Date.now());
+            notificationData.type = payload.data.type || "like";
+
+            try {
+                // Decrypt body
+                if (payload.data.body && payload.data.body_iv) {
+                    const decryptedBody = await decryptString(payload.data.body, payload.data.body_iv);
+                    notificationData.body = decryptedBody || "You have a new notification (body decryption failed)";
+                } else {
+                    notificationData.body = "You have a new notification (no encrypted body)";
+                }
+
+                // Decrypt url
+                if (payload.data.url && payload.data.url_iv) {
+                    const decryptedUrl = await decryptString(payload.data.url, payload.data.url_iv);
+                    notificationData.url = decryptedUrl || "/notifications";
+                } else {
+                    notificationData.url = "/notifications";
+                }
+
+                console.log("Decryption successful, updated notification data:", notificationData);
+            } catch (error) {
+                console.error("Error decrypting notification fields:", error);
+                // Set fallback values
+                notificationData.body = "You have a new notification (decryption error)";
+                notificationData.url = "/notifications";
+                notificationData.notificationId = payload.data.notificationId || ("notification-" + Date.now());
+                notificationData.type = payload.data.type || "like";
+            }
         } else {
             console.log("Processing UNENCRYPTED notification from backend");
             // For unencrypted notifications, backend sends: title, body, url, notificationId, timestamp, type
@@ -186,46 +199,12 @@ messaging.onBackgroundMessage(async (payload) => {
             notificationData.notificationId = payload.data.notificationId || ("notification-" + Date.now());
             notificationData.type = payload.data.type || "like";
         }
-        
-        // Check if the notification is encrypted
-        if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
-            console.log("Received encrypted notification, attempting to decrypt");
-            
-            try {
-                // Try to decrypt the data
-                const decryptedData = await decryptNotificationPayload(payload.data.data, payload.data.iv);
-                
-                if (decryptedData) {
-                    console.log("Decryption successful, updating notification data");
-                    
-                    // Update notification data with decrypted values
-                    notificationData.body = decryptedData.body || "You have a new notification";
-                    notificationData.url = decryptedData.url || "/notifications";
-                    notificationData.notificationId = decryptedData.notificationId || ("notification-" + Date.now());
-                    notificationData.type = decryptedData.type || "like";
-                    
-                    console.log("Updated notification data with ALL decrypted fields:", notificationData);
-                } else {
-                    console.error("Failed to decrypt notification data, using fallback");
-                    // Set fallback values for encrypted notification that failed to decrypt
-                    notificationData.body = "You have a new notification (decryption failed)";
-                    notificationData.url = "/notifications";
-                    notificationData.notificationId = "notification-" + Date.now();
-                    notificationData.type = "like";
-                }
-            } catch (error) {
-                console.error("Error decrypting notification:", error);
-                // Set fallback values
-                notificationData.body = "You have a new notification (decryption error)";
-                notificationData.url = "/notifications";
-                notificationData.notificationId = "notification-" + Date.now();
-                notificationData.type = "like";
-            }
-        }
 
         console.log("=== FINAL NOTIFICATION DATA ===");
-        console.log("Notification body that will be displayed:", notificationData.body);
-        console.log("Full notification data:", notificationData);
+        console.log("Title:", notificationData.title);
+        console.log("Body:", notificationData.body);
+        console.log("URL:", notificationData.url);
+        console.log("Type:", notificationData.type);
 
         // Show the notification
         self.registration.showNotification(notificationData.title, {

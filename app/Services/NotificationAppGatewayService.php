@@ -120,7 +120,9 @@ class NotificationAppGatewayService
         \Log::info($url );
         \Log::info($value );
 
-        self::sendFcmNotification($userToken , $type, $actor, $url );
+        \Log::info('About to call sendFcmNotification');
+        $result = self::sendFcmNotification($userToken , $type, $actor, $url );
+        \Log::info('sendFcmNotification result: ' . json_encode($result));
         
     }
 
@@ -172,8 +174,10 @@ class NotificationAppGatewayService
 
     public static function sendFcmNotification($userToken, $type, $actor, $url)
     {
+        \Log::info('Starting sendFcmNotification');
         $accessToken = self::getGoogleAccessToken();
-        
+        \Log::info('Access token retrieved: ' . ($accessToken ? 'YES' : 'NO'));
+
         if($accessToken) {
             // Create a unique notification ID to prevent duplicates
             $notificationId = md5($type . $actor . $url . time());
@@ -190,42 +194,39 @@ class NotificationAppGatewayService
             
             // For FCM compatibility, all values must be strings
             $notificationData = [
-                'title' => (string) ($notificationData['title'] ?? env('APP_NAME') ?? "Pixelfed"),
-                'body' => (string) ($notificationData['body'] ?? self::bodyTitleMake($type, $actor)),
-                'url' => (string) ($notificationData['url'] ?? $url),
-                'notificationId' => (string) ($notificationData['notificationId'] ?? $notificationId),
-                'timestamp' => (string) ($notificationData['timestamp'] ?? time()),
-                'type' => (string) ($notificationData['type'] ?? $type)
+                'title' => $notificationData['title'] ?? env('APP_NAME') ?? "Pixelfed",
+                'body' =>  $notificationData['body'] ?? self::bodyTitleMake($type, $actor),
+                'url' => $notificationData['url'] ?? $url,
+                'notificationId' => $notificationData['notificationId'] ?? $notificationId,
+                'timestamp' => $notificationData['timestamp'] ?? time(),
+                'type' => $notificationData['type'] ?? $type
             ];
             
-            // Encrypt sensitive fields
+            // Encrypt only the body and url fields
             try {
                 $encryptionService = new \App\Services\NotificationEncryptionService();
 
-                // Extract the fields to encrypt
-                $dataToEncrypt = [
-                    'body' => $notificationData['body'],
-                    'url' => $notificationData['url'],
-                    'notificationId' => $notificationData['notificationId'],
-                    'type' => $notificationData['type']
-                ];
+                // Encrypt body and url separately
+                $encryptedBody = $encryptionService->encryptString($notificationData['body']);
+                $encryptedUrl = $encryptionService->encryptString($notificationData['url']);
 
-                // Encrypt the data (the encrypt method handles the key internally)
-                $encryptedResult = $encryptionService->encrypt($dataToEncrypt);
-                
-                if ($encryptedResult) {
-                    // Replace the original fields with encrypted data
+                if ($encryptedBody['encrypted'] && $encryptedUrl['encrypted']) {
+                    // Replace body and url with encrypted versions, keep other fields unencrypted
                     $notificationData = [
                         'title' => $notificationData['title'],
+                        'body' => $encryptedBody['data'],
+                        'body_iv' => $encryptedBody['iv'],
+                        'url' => $encryptedUrl['data'],
+                        'url_iv' => $encryptedUrl['iv'],
+                        'notificationId' => $notificationData['notificationId'],
                         'timestamp' => $notificationData['timestamp'],
-                        'encrypted' => 'true',
-                        'data' => $encryptedResult['data'],
-                        'iv' => $encryptedResult['iv']
+                        'type' => $notificationData['type'],
+                        'encrypted' => 'true'
                     ];
-                    
-                    \Log::info('Notification data encrypted successfully');
+
+                    \Log::info('Notification body and url encrypted successfully');
                 } else {
-                    \Log::error('Failed to encrypt notification data, sending unencrypted');
+                    \Log::error('Failed to encrypt notification body/url, sending unencrypted');
                 }
             } catch (\Exception $e) {
                 \Log::error('Exception encrypting notification data: ' . $e->getMessage());

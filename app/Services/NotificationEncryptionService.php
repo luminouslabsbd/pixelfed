@@ -55,8 +55,54 @@ class NotificationEncryptionService
     }
     
     /**
-     * Encrypt data
-     * 
+     * Encrypt a single string value
+     *
+     * @param string $value
+     * @return array
+     */
+    public static function encryptString($value)
+    {
+        try {
+            // Generate a random IV
+            $iv = random_bytes(self::IV_LENGTH);
+
+            // Get the encryption key
+            $key = self::getEncryptionKey();
+
+            // Encrypt the string
+            $encrypted = openssl_encrypt(
+                $value,
+                self::CIPHER_METHOD,
+                $key,
+                0,
+                $iv
+            );
+
+            if ($encrypted === false) {
+                throw new Exception('Failed to encrypt string');
+            }
+
+            // Return the encrypted data and IV
+            return [
+                'encrypted' => true,
+                'data' => base64_encode($encrypted),
+                'iv' => base64_encode($iv)
+            ];
+        } catch (Exception $e) {
+            Log::error('String encryption failed: ' . $e->getMessage());
+
+            // Return the original value if encryption fails
+            return [
+                'encrypted' => false,
+                'data' => $value,
+                'error' => 'Encryption failed'
+            ];
+        }
+    }
+
+    /**
+     * Encrypt data (legacy method for backward compatibility)
+     *
      * @param array $data
      * @return array
      */
@@ -65,13 +111,13 @@ class NotificationEncryptionService
         try {
             // Generate a random IV
             $iv = random_bytes(self::IV_LENGTH);
-            
+
             // Get the encryption key
             $key = self::getEncryptionKey();
-            
+
             // Convert data to JSON
             $jsonData = json_encode($data);
-            
+
             // Encrypt the data
             $encrypted = openssl_encrypt(
                 $jsonData,
@@ -80,11 +126,11 @@ class NotificationEncryptionService
                 0,
                 $iv
             );
-            
+
             if ($encrypted === false) {
                 throw new Exception('Failed to encrypt data');
             }
-            
+
             // Return the encrypted data and IV
             return [
                 'encrypted' => true,
@@ -94,7 +140,7 @@ class NotificationEncryptionService
             ];
         } catch (Exception $e) {
             Log::error('Notification encryption failed: ' . $e->getMessage());
-            
+
             // Return the original data if encryption fails
             return [
                 'encrypted' => false,
@@ -105,8 +151,45 @@ class NotificationEncryptionService
     }
     
     /**
-     * Decrypt data
-     * 
+     * Decrypt a single string value
+     *
+     * @param string $encryptedData
+     * @param string $iv
+     * @return string|null
+     */
+    public static function decryptString($encryptedData, $iv)
+    {
+        try {
+            // Get the encryption key
+            $key = self::getEncryptionKey();
+
+            // Decode the base64 encoded data
+            $encryptedData = base64_decode($encryptedData);
+            $iv = base64_decode($iv);
+
+            // Decrypt the data
+            $decrypted = openssl_decrypt(
+                $encryptedData,
+                self::CIPHER_METHOD,
+                $key,
+                0,
+                $iv
+            );
+
+            if ($decrypted === false) {
+                throw new Exception('Failed to decrypt string');
+            }
+
+            return $decrypted;
+        } catch (Exception $e) {
+            Log::error('String decryption failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Decrypt data (legacy method for backward compatibility)
+     *
      * @param string $encryptedData
      * @param string $iv
      * @return array|null
@@ -116,11 +199,11 @@ class NotificationEncryptionService
         try {
             // Get the encryption key
             $key = self::getEncryptionKey();
-            
+
             // Decode the base64 encoded data
             $encryptedData = base64_decode($encryptedData);
             $iv = base64_decode($iv);
-            
+
             // Decrypt the data
             $decrypted = openssl_decrypt(
                 $encryptedData,
@@ -129,11 +212,11 @@ class NotificationEncryptionService
                 0,
                 $iv
             );
-            
+
             if ($decrypted === false) {
                 throw new Exception('Failed to decrypt data');
             }
-            
+
             // Convert JSON back to array
             return json_decode($decrypted, true);
         } catch (Exception $e) {
