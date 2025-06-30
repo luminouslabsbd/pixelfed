@@ -1,237 +1,102 @@
-// Service worker version - increment this when making important changes
-const SW_VERSION = "1.5.0";
+// Firebase Messaging Service Worker
+const SW_VERSION = '1.0.0';
 
-// Debug: Log all notification attempts
-console.log(`[Service Worker] Loading version ${SW_VERSION} - System notifications will be blocked`);
+// Initialize Firebase Messaging
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-importScripts(
-    "https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"
-);
-importScripts(
-    "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js"
-);
-// Try to import crypto helper with error handling
-console.log("Attempting to load crypto-helper.js...");
-try {
-    importScripts("/js/crypto-helper.js");
-    console.log("Successfully loaded crypto-helper.js from absolute path");
-} catch (error) {
-   
-    try {
-        importScripts("js/crypto-helper.js");
-
-    } catch (error2) {
-        console.log("Crypto helper not available - encrypted notifications will not work");
-        self.CryptoHelper = {
-            async decrypt(encryptedData, iv, key) {
-                try {
-                    console.log("=== INLINE CRYPTO HELPER ===");
-                    // Backend only does SINGLE base64 encoding, not double!
-                    console.log("Raw encrypted data (base64):", encryptedData);
-                    console.log("Raw IV data (base64):", iv);
-
-                    const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
-                    const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
-
-                    // Post message to main thread for debugging
-                    if (typeof self !== 'undefined' && self.clients) {
-                        self.clients.matchAll().then(clients => {
-                            clients.forEach(client => {
-                                client.postMessage({
-                                    type: 'DECRYPTION_DEBUG',
-                                    data: {
-                                        encryptedDataLength: encryptedData.length,
-                                        ivLength: iv.length,
-                                        encryptedBufferLength: encryptedBuffer.length,
-                                        ivBufferLength: ivBuffer.length
-                                    }
-                                });
-                            });
-                        });
-                    }
-
-                    console.log("Buffer lengths:");
-                    console.log("- Encrypted buffer length:", encryptedBuffer.length);
-                    console.log("- IV buffer length:", ivBuffer.length);
-                    console.log("- Expected IV length: 16 bytes");
-
-                    if (ivBuffer.length !== 16) {
-                        console.error("❌ IV length is wrong! Expected 16, got:", ivBuffer.length);
-                        return null;
-                    }
-
-                   
-                    // Process key EXACTLY the same way as backend: substr(hash('sha256', key), 0, 32)
-                    // Backend does: substr(hash('sha256', $key), 0, 32) - first 32 CHARACTERS of hex string
-                    console.log("Processing key exactly like backend...");
-                    const encoder = new TextEncoder();
-                    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(key));
-                    const hashArray = new Uint8Array(hashBuffer);
-
-                    // Convert to hex string like PHP hash() function
-                    const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
-                    console.log("Full hash hex:", hashHex);
-
-                    // Take first 32 characters of hex string (like backend)
-                    const keyHex = hashHex.substring(0, 32);
-                    console.log("Key hex (32 chars):", keyHex);
-
-                    // Convert hex string back to bytes for crypto API
-                    const keyBytes = new Uint8Array(keyHex.match(/.{2}/g).map(byte => parseInt(byte, 16)));
-
-                    console.log("Key hash (first 10 bytes):", Array.from(keyBytes.slice(0, 10)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-
-                    // Import key for AES-256-CBC (same as backend)
-                    console.log("Importing crypto key...");
-                    const cryptoKey = await crypto.subtle.importKey(
-                        'raw',
-                        keyBytes,
-                        { name: 'AES-CBC', length: 256 },
-                        false,
-                        ['decrypt']
-                    );
-
-                    // Decrypt using AES-256-CBC (same as backend)
-                    console.log("Performing decryption...");
-                    const decryptedBuffer = await crypto.subtle.decrypt(
-                        { name: 'AES-CBC', iv: ivBuffer },
-                        cryptoKey,
-                        encryptedBuffer
-                    );
-
-                    console.log("Decryption successful, buffer size:", decryptedBuffer.byteLength);
-
-                    // Convert to string and parse JSON
-                    const decryptedString = new TextDecoder().decode(decryptedBuffer);
-                    
-
-                    // Check if string looks like JSON
-                    if (!decryptedString.trim().startsWith('{') && !decryptedString.trim().startsWith('[')) {
-                        console.error("Decrypted string does not look like JSON:", decryptedString);
-                        return null;
-                    }
-
-                    try {
-                        const parsedData = JSON.parse(decryptedString);
-                        console.log("Parsed JSON data:", parsedData);
-                        console.log("=== DECRYPTION SUCCESS ===");
-
-                        // Post success message to main thread
-                        if (typeof self !== 'undefined' && self.clients) {
-                            self.clients.matchAll().then(clients => {
-                                clients.forEach(client => {
-                                    client.postMessage({
-                                        type: 'DECRYPTION_SUCCESS',
-                                        data: parsedData
-                                    });
-                                });
-                            });
-                        }
-
-                        return parsedData;
-                    } catch (jsonError) {
-                        console.error("JSON parsing failed:", jsonError);
-                        console.error("Raw decrypted string:", JSON.stringify(decryptedString));
-                        return null;
-                    }
-                } catch (error) {
-                    console.error("=== DECRYPTION FAILED ===");
-                    console.error("Error:", error.name, error.message);
-
-                    // Post failure message to main thread
-                    if (typeof self !== 'undefined' && self.clients) {
-                        self.clients.matchAll().then(clients => {
-                            clients.forEach(client => {
-                                client.postMessage({
-                                    type: 'DECRYPTION_FAILED',
-                                    error: {
-                                        name: error.name,
-                                        message: error.message
-                                    }
-                                });
-                            });
-                        });
-                    }
-
-                    return null;
-                }
-            }
-        };
-       
-    }
-}
-
-// Final check of CryptoHelper availability
-console.log("Final CryptoHelper check:", typeof CryptoHelper !== 'undefined' ? "Available" : "Not available");
-
-// Test decryption capability when service worker loads
-if (typeof CryptoHelper !== 'undefined') {
-    testDecryptionWithBackendData();
-
-    // Also test notification processing after a short delay
-    setTimeout(() => {
-        testNotificationProcessing();
-    }, 1000);
-}
-
-// Install event: Do NOT call skipWaiting()
-self.addEventListener("install", (event) => {
-    console.log(`[Service Worker] Installing new version ${SW_VERSION}`);
-    // Remove self.skipWaiting() to prevent immediate activation
-    // Let the service worker stay in the "waiting" state
-});
-
-// Activate event: Do NOT call clients.claim()
-self.addEventListener("activate", (event) => {
-    console.log(`[Service Worker] Activated new version ${SW_VERSION}`);
-    // Notify clients about the new service worker without forcing control
-    event.waitUntil(
-        clients.matchAll({ type: "window" }).then((clientList) => {
-            clientList.forEach((client) => {
-                client.postMessage({
-                    type: "SW_UPDATE_AVAILABLE",
-                    version: SW_VERSION,
-                });
-            });
-        })
-    );
-});
-
-firebase.initializeApp({
-    apiKey: "AIzaSyCxKyv-Xh5R7iStYT9-MD7mdgb4rc3p3z0",
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyBJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
     authDomain: "pixelfed-38904.firebaseapp.com",
     projectId: "pixelfed-38904",
-    storageBucket: "pixelfed-38904.firebasestorage.app",
-    messagingSenderId: "1080382857079",
-    appId: "1:1080382857079:web:412638d701febb0c034b72",
-    measurementId: "G-PTH81EBDG4",
-});
+    storageBucket: "pixelfed-38904.appspot.com",
+    messagingSenderId: "123456789012",
+    appId: "1:123456789012:web:abcdefghijklmnop"
+};
 
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
+
+// Create inline crypto helper for decryption
+if (typeof self !== 'undefined') {
+    self.CryptoHelper = {
+        async decrypt(encryptedData, iv, key) {
+            try {
+                // Backend does DOUBLE base64 encoding on encrypted data
+                // First decode to get the actual base64 encrypted data
+                const firstDecode = atob(encryptedData);
+                const encryptedBuffer = Uint8Array.from(atob(firstDecode), c => c.charCodeAt(0));
+                
+                // IV is single base64 encoded
+                const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+                
+                if (ivBuffer.length !== 16) {
+                    console.error("❌ IV length is wrong! Expected 16, got:", ivBuffer.length);
+                    return null;
+                }
+                   
+                // Process key EXACTLY the same way as backend: substr(hash('sha256', key), 0, 32)
+                const encoder = new TextEncoder();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(key));
+                const hashArray = new Uint8Array(hashBuffer);
+                const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+                const keyHex = hashHex.substring(0, 32);
+                const keyBytes = new Uint8Array(keyHex.match(/.{2}/g).map(byte => parseInt(byte, 16)));
+
+                // Import key for AES-256-CBC (same as backend)
+                const cryptoKey = await crypto.subtle.importKey(
+                    'raw',
+                    keyBytes,
+                    { name: 'AES-CBC', length: 256 },
+                    false,
+                    ['decrypt']
+                );
+
+                // Decrypt using AES-256-CBC (same as backend)
+                const decryptedBuffer = await crypto.subtle.decrypt(
+                    { name: 'AES-CBC', iv: ivBuffer },
+                    cryptoKey,
+                    encryptedBuffer
+                );
+
+                // Convert to string and parse JSON
+                const decryptedString = new TextDecoder().decode(decryptedBuffer);
+                
+                if (!decryptedString.trim()) {
+                    return null;
+                }
+
+                try {
+                    const parsedData = JSON.parse(decryptedString);
+                    return parsedData;
+                } catch (jsonError) {
+                    return null;
+                }
+            } catch (error) {
+                return null;
+            }
+        }
+    };
+}
+
+// Function to get the encryption key
+function getEncryptionKey() {
+    // This MUST match the NOTIFICATION_ENCRYPTION_KEY in your backend .env
+    const key = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
+    return key;
+}
 
 // Function to decrypt notification payload
 async function decryptNotificationPayload(encryptedData, iv) {
     try {
-        console.log('Starting decryption process with:', {
-            encryptedDataLength: encryptedData.length,
-            ivLength: iv.length
-        });
-
-        // Check if CryptoHelper is available
-        if (typeof CryptoHelper === 'undefined') {
-            console.error("CryptoHelper not available - cannot decrypt notification");
-            return null;
-        }
-
-        // Get the encryption key from localStorage or a secure source
         const key = getEncryptionKey();
-
+        
         if (!key) {
-            console.error("Encryption key not found");
+            console.error('Encryption key not found');
             return null;
         }
-
-        console.log('Using encryption key (first few chars):', key.substring(0, 5) + '...');
 
         // Decrypt the data
         console.log('Calling CryptoHelper.decrypt...');
@@ -245,257 +110,64 @@ async function decryptNotificationPayload(encryptedData, iv) {
             return null;
         }
     } catch (error) {
-        console.error("Decryption error in decryptNotificationPayload:", error);
-        console.error("Error details:", {
-            message: error.message,
-            name: error.name,
-            stack: error.stack
-        });
+        console.error('Error in decryptNotificationPayload:', error);
         return null;
     }
-}
-
-// Function to get the encryption key
-function getEncryptionKey() {
-    // In a real-world scenario, this should be securely stored
-    // For demo purposes, we're hardcoding the key (same as in .env)
-    // This MUST match the NOTIFICATION_ENCRYPTION_KEY in your backend .env
-    const key = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
-    return key;
 }
 
 // Process notification with either encrypted or non-encrypted data
 function processNotification(data) {
     console.log('Processing notification data:', data);
 
-    // Only block notifications that are clearly system-generated (not from your backend)
     // Check if this is a notification from your backend (has type or notificationId)
     const isBackendNotification = data.type || data.notificationId || data.url;
-
-    if (!isBackendNotification && data && (data.body || data.title)) {
-        const bodyText = (data.body || '').toLowerCase();
-        const titleText = (data.title || '').toLowerCase();
-
-        // Only block very specific system phrases, not general words
-        const systemUpdatePhrases = [
-            'this site has been updated in the background',
-            'new version of this site is available',
-            'refresh this page to see updates'
-        ];
-
-        for (const phrase of systemUpdatePhrases) {
-            if (bodyText.includes(phrase) || titleText.includes(phrase)) {
-               
-                return; // Exit immediately
-            }
-        }
-    }
-
-    // Log that we're processing a backend notification
-    if (isBackendNotification) {
-        console.log('Processing backend notification:', {
-            type: data.type,
-            notificationId: data.notificationId,
-            title: data.title,
-            body: data.body
-        });
-    }
-
-    const notificationBody = data.body || "";
-    const notificationTitle = data.title || "New Notification";
-    const notificationUrl = data.url || "/";
-    const notificationId = data.notificationId || ("notification-" + Date.now());
-    const timestamp = data.timestamp || Date.now().toString();
-    const notificationType = data.type || "unknown";
-
-    // Only block if this is NOT a backend notification and contains specific system phrases
-    const isFromBackend = notificationType !== "unknown" || notificationId.includes("notification-") === false;
-
-    if (!isFromBackend &&
-        (notificationBody.toLowerCase().includes("this site has been updated in the background") ||
-         notificationTitle.toLowerCase().includes("this site has been updated in the background"))) {
-        console.log("Blocked specific system update notification");
-        return;
-    }
     
-    console.log('Extracted notification fields:', {
-        body: notificationBody,
-        title: notificationTitle,
-        url: notificationUrl,
-        id: notificationId,
-        type: notificationType
-    });
-
-    // BLOCK LIST: Only block very specific system notification phrases
-    // Don't block general words that might be in user notifications
-    const blockTerms = [
-        "this site has been updated in the background",
-        "new version of this site is available",
-        "refresh this page to see updates",
-        "site needs to be refreshed"
-    ];
-
-    // Only check for blocked terms if this is NOT a backend notification
-    const hasBackendIdentifiers = notificationType !== "unknown" ||
-                                  notificationUrl !== "/" ||
-                                  notificationId.startsWith("notification-") === false;
-
-    if (!hasBackendIdentifiers) {
-        // Check if notification contains any blocked terms
-        const containsBlockedTerm = blockTerms.some(
-            (term) =>
-                notificationBody.toLowerCase().includes(term.toLowerCase()) ||
-                notificationTitle.toLowerCase().includes(term.toLowerCase())
-        );
-
-        if (containsBlockedTerm) {
-            console.log("Blocked system notification:", {
-                title: notificationTitle,
-                body: notificationBody,
-                reason: "Contains blocked term"
-            });
-            return;
-        }
-    } else {
-        console.log("Allowing backend notification:", {
-            title: notificationTitle,
-            body: notificationBody,
-            type: notificationType
-        });
+    if (!isBackendNotification) {
+        console.log('Not a backend notification, ignoring');
+        return false;
     }
 
-    // ALLOW LIST: Show notifications that are from backend or match user interaction patterns
-    const isUserInteraction =
-        notificationType === "like" ||
-        notificationType === "follow" ||
-        notificationType === "comment" ||
-        notificationType === "mention" ||
-        notificationType === "dm" ||
-        notificationType === "tag" ||
-        notificationType === "share" ||
-        notificationType === "comment_like" ||
-        notificationBody.includes("liked") ||
-        notificationBody.includes("followed") ||
-        notificationBody.includes("commented") ||
-        notificationBody.includes("mentioned") ||
-        notificationBody.includes("message") ||
-        notificationBody.includes("tagged") ||
-        notificationBody.includes("shared");
-
-    // Also allow if this looks like a backend notification (has proper structure)
-    const isFromBackendService = notificationType !== "unknown" ||
-                                 notificationUrl !== "/" ||
-                                 (notificationId && !notificationId.startsWith("notification-" + Date.now().toString().slice(0, 8)));
-
-    // Only proceed with user interaction notifications or backend notifications
-    if (isUserInteraction || isFromBackendService) {
-        const notificationOptions = {
-            body: notificationBody,
-            icon: "/img/logo/pwa/192.png",
-            tag: notificationId,
-            vibrate: [100, 50, 100],
-            data: {
-                url: notificationUrl,
-                timestamp: timestamp,
-                type: notificationType
-            },
-            requireInteraction: false, // Changed to false for better compatibility
-            silent: false,
-            renotify: false
-        };
-
-        // Display the notification
-        console.log('Attempting to show notification:', {
-            title: notificationTitle,
-            options: notificationOptions
-        });
-
-        // Check if we can show notifications
-        if (!self.registration) {
-            console.error('Service worker registration not available');
-            return;
-        }
-
-        try {
-            const notificationPromise = self.registration.showNotification(
-                notificationTitle,
-                notificationOptions
-            );
-
-            if (notificationPromise && notificationPromise.then) {
-                notificationPromise
-                    .then(() => {
-                        console.log('Notification displayed successfully:', {
-                            title: notificationTitle,
-                            body: notificationBody,
-                            url: notificationUrl
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Error in notification promise:', error);
-                    });
-            } else {
-                console.log('Notification displayed (no promise returned):', {
-                    title: notificationTitle,
-                    body: notificationBody,
-                    url: notificationUrl
-                });
-            }
-        } catch (error) {
-            console.error('Error showing notification:', error);
-            console.error('Error details:', {
-                name: error.name,
-                message: error.message,
-                stack: error.stack
-            });
-        }
-    } else {
-        console.log(
-            "Skipped non-user interaction notification:",
-            notificationBody
-        );
-    }
+    return {
+        title: data.title || 'Pixelfed',
+        body: data.body || 'You have a new notification',
+        url: data.url || '/notifications',
+        notificationId: data.notificationId || 'notification-' + Date.now(),
+        type: data.type || 'like'
+    };
 }
 
-// Intercept all messages before they become notifications
-messaging.onBackgroundMessage(async function (payload) {
-    console.log(
-        "[firebase-messaging-sw.js] Received background message",
-        payload
-    );
+// Install event
+self.addEventListener("install", (event) => {
+    console.log(`[Service Worker] Installing new version ${SW_VERSION}`);
+});
 
-    // Check notification permission
-    if (Notification.permission !== 'granted') {
-        console.warn('Notification permission not granted, cannot show notification');
-        return;
-    }
+// Activate event
+self.addEventListener("activate", (event) => {
+    console.log(`[Service Worker] Activated version ${SW_VERSION}`);
+});
 
-    console.log("tanha,",payload);
-    // Only block very specific system notifications at FCM level
-    if (payload.notification && payload.notification.body) {
-        const body = payload.notification.body.toLowerCase();
-        if (body.includes('this site has been updated in the background')) {
-            console.log('Blocked system notification at FCM level:', payload.notification);
+// Handle background messages from FCM
+messaging.onBackgroundMessage((payload) => {
+    console.log('[firebase-messaging-sw.js] Received background message ', payload);
+
+    try {
+        // Check notification permission
+        if (Notification.permission !== 'granted') {
+            console.warn('Notification permission not granted, cannot show notification');
             return;
         }
-    }
 
-    // Check if we have data in the payload
-    if (payload.data) {
-        console.log("=== DEBUGGING BACKEND DATA FORMAT ===");
-        console.log("Full FCM payload:", JSON.stringify(payload, null, 2));
-        console.log("payload.data:", JSON.stringify(payload.data, null, 2));
-        console.log("payload.data keys:", Object.keys(payload.data));
-        console.log("payload.data.body:", payload.data.body);
-        console.log("payload.data.title:", payload.data.title);
-        console.log("payload.data.encrypted:", payload.data.encrypted);
-        console.log("payload.data.data:", payload.data.data);
-        console.log("payload.data.iv:", payload.data.iv);
-        console.log("=== END DEBUGGING ===");
-        
-        // Create notification data structure based on backend format
+        // Check if we have data in the payload
+        if (!payload.data) {
+            console.warn('No data in FCM payload');
+            return;
+        }
+
+        console.log("FCM payload data received:", payload.data);
+
+        // Create notification data structure
         let notificationData = {
-            title: payload.data.title || "New Notification",
+            title: payload.data.title || "Pixelfed",
             timestamp: payload.data.timestamp || Date.now().toString()
         };
 
@@ -517,22 +189,20 @@ messaging.onBackgroundMessage(async function (payload) {
         // Check if the notification is encrypted
         if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
             console.log("Received encrypted notification, attempting to decrypt");
-            console.log("Raw encrypted data:", payload.data.data);
-            console.log("Raw IV:", payload.data.iv);
             
             try {
                 // Try to decrypt the data
                 const decryptedData = await decryptNotificationPayload(payload.data.data, payload.data.iv);
                 
                 if (decryptedData) {
-                    console.log("Successfully decrypted notification data:", decryptedData);
-
-                    // Set all fields from decrypted data (these were encrypted in backend)
+                    console.log("Decryption successful, updating notification data");
+                    
+                    // Update notification data with decrypted values
                     notificationData.body = decryptedData.body || "You have a new notification";
                     notificationData.url = decryptedData.url || "/notifications";
                     notificationData.notificationId = decryptedData.notificationId || ("notification-" + Date.now());
                     notificationData.type = decryptedData.type || "like";
-
+                    
                     console.log("Updated notification data with ALL decrypted fields:", notificationData);
                 } else {
                     console.error("Failed to decrypt notification data, using fallback");
@@ -544,12 +214,7 @@ messaging.onBackgroundMessage(async function (payload) {
                 }
             } catch (error) {
                 console.error("Error decrypting notification:", error);
-                console.error("Error details:", {
-                    message: error.message,
-                    name: error.name,
-                    stack: error.stack
-                });
-                // Set fallback values for encrypted notification that had decryption error
+                // Set fallback values
                 notificationData.body = "You have a new notification (decryption error)";
                 notificationData.url = "/notifications";
                 notificationData.notificationId = "notification-" + Date.now();
@@ -557,330 +222,61 @@ messaging.onBackgroundMessage(async function (payload) {
             }
         }
 
-        // Ensure we always have a body set
-        if (!notificationData.body) {
-            notificationData.body = "You have a new notification";
-        }
-        // Process the notification through the normal processing function
-        processNotification(notificationData);
-    } else {
-        console.warn("Received payload without data", payload);
+        console.log("=== FINAL NOTIFICATION DATA ===");
+        console.log("Notification body that will be displayed:", notificationData.body);
+        console.log("Full notification data:", notificationData);
+
+        // Show the notification
+        self.registration.showNotification(notificationData.title, {
+            body: notificationData.body,
+            icon: '/img/logo/pwa/192.png',
+            badge: '/img/logo/pwa/192.png',
+            data: {
+                url: notificationData.url,
+                notificationId: notificationData.notificationId,
+                type: notificationData.type
+            },
+            actions: [
+                {
+                    action: 'open',
+                    title: 'Open'
+                }
+            ]
+        });
+
+        console.log("Notification displayed successfully:", {
+            title: notificationData.title,
+            body: notificationData.body,
+            url: notificationData.url
+        });
+
+    } catch (error) {
+        console.error('Error processing FCM background message:', error);
     }
 });
 
-// Handle notification click to open specific page
-self.addEventListener("notificationclick", function (event) {
-    console.log("[firebase-messaging-sw.js] Notification clicked:", event);
-    event.stopPropagation();
-    event.notification.close();
-    const urlToOpen = event.notification?.data?.url || "/";
+// Handle notification click
+self.addEventListener('notificationclick', (event) => {
+    console.log('[firebase-messaging-sw.js] Notification click received.');
 
+    event.notification.close();
+
+    // Get the URL from the notification data
+    const urlToOpen = event.notification.data?.url || '/notifications';
+    
     event.waitUntil(
-        clients
-            .matchAll({ type: "window", includeUncontrolled: true })
-            .then((clientList) => {
-                for (const client of clientList) {
-                    if (client.url === urlToOpen && "focus" in client) {
-                        return client.focus();
-                    }
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            // Check if there's already a window/tab open with the target URL
+            for (const client of clientList) {
+                if (client.url === urlToOpen && 'focus' in client) {
+                    return client.focus();
                 }
-                if (clients.openWindow) {
-                    return clients.openWindow(urlToOpen);
-                }
-            })
-            .catch((err) => {
-                console.error("Error handling notification click:", err);
-            })
+            }
+            
+            // If no existing window/tab, open a new one
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
     );
 });
-
-// Test function to verify notification display works
-function testNotificationDisplay() {
-    console.log('Testing notification display...');
-
-    if (Notification.permission !== 'granted') {
-        console.warn('Notification permission not granted');
-        return;
-    }
-
-    const testOptions = {
-        body: 'This is a test notification to verify display functionality',
-        icon: '/img/logo/pwa/192.png',
-        tag: 'test-notification',
-        vibrate: [100, 50, 100],
-        data: {
-            url: '/',
-            timestamp: Date.now().toString(),
-            type: 'test'
-        },
-        requireInteraction: false
-    };
-
-    try {
-        self.registration.showNotification('Test Notification', testOptions);
-        console.log('Test notification displayed successfully');
-    } catch (error) {
-        console.error('Error displaying test notification:', error);
-    }
-}
-
-// Test function to verify decryption with backend-like data
-async function testDecryptionWithBackendData() {
-    console.log('=== TESTING DECRYPTION WITH BACKEND-LIKE DATA ===');
-
-    try {
-        // Test if CryptoHelper can decrypt
-        if (typeof CryptoHelper !== 'undefined') {
-            const testKey = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
-
-            console.log('Testing key processing to match backend...');
-            console.log('CryptoHelper available:', typeof CryptoHelper);
-
-            // Test the key processing (same as backend)
-            const encoder = new TextEncoder();
-            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(testKey));
-            const hashArray = new Uint8Array(hashBuffer);
-
-            // Convert to hex string like PHP hash() function
-            const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
-            console.log('Full hash hex:', hashHex);
-
-            // Take first 32 characters of hex string (like backend)
-            const keyHex = hashHex.substring(0, 32);
-            console.log('Frontend processed key:', keyHex);
-            console.log('Backend processed key:  cb620401cb4d6507fff3ef891590214e');
-            console.log('Keys match:', keyHex === 'cb620401cb4d6507fff3ef891590214e');
-
-            if (keyHex === 'cb620401cb4d6507fff3ef891590214e') {
-                console.log('✅ KEY PROCESSING MATCHES BACKEND!');
-            } else {
-                console.error('❌ KEY PROCESSING DOES NOT MATCH BACKEND!');
-            }
-
-            // Test with real encrypted data from backend debug
-            console.log('\n--- Testing with real backend encrypted data ---');
-            const realEncryptedData = "aGhiZTRDRnVDWHUyNmtaNGxOK1B6aUUzWHVhSFp0RlhwUk9QTStoRFUyQXoveGUwL1JBR3BxVVdidWxyNWx3cVZPbkRDTlRHR1V1Y01iaXJNcGcwOUwrYkxTdHpKQVdaZWluNmx1QXRBWW12ZjRZUTRiakg3TUJ6T1hkYzU4T0xLa1dLU2xQUTlhQnZiRjlWS3VEL3E5WEtSZFVQT2VSRllhZzdkYVlQcHRDbDRTbit6LzQwcExwZW9ROHNEeW1zODFJQWlGWTk2QnJkalR3SFEwZGhJRkgyWDF2dzh4VkZQTjV6OXdjSEI5V01LWlhpcFJvbk1IOHE2NjBaRWJ0VQ==";
-            const realIV = "cUU723tP2Elrs6yIBekr+A==";
-
-            console.log('Attempting to decrypt real backend data...');
-            const decryptedReal = await CryptoHelper.decrypt(realEncryptedData, realIV, testKey);
-
-            if (decryptedReal) {
-                console.log('✅ REAL BACKEND DATA DECRYPTION SUCCESS!');
-                console.log('Decrypted data:', decryptedReal);
-            } else {
-                console.error('❌ REAL BACKEND DATA DECRYPTION FAILED!');
-            }
-
-            console.log('Decryption test completed - ready for real notifications');
-        } else {
-            console.error('CryptoHelper not available for testing');
-        }
-    } catch (error) {
-        console.error('Decryption test failed:', error);
-    }
-
-    console.log('=== END DECRYPTION TEST ===');
-}
-
-// Function to manually test notification processing
-async function testNotificationProcessing() {
-    console.log('=== TESTING NOTIFICATION PROCESSING ===');
-
-    // Test payload from backend
-    const testPayload = {
-        "title": "Test Encrypted Notification",
-        "timestamp": 1751260216,
-        "encrypted": "true",
-        "data": "aGhiZTRDRnVDWHUyNmtaNGxOK1B6aUUzWHVhSFp0RlhwUk9QTStoRFUyQXoveGUwL1JBR3BxVVdidWxyNWx3cVZPbkRDTlRHR1V1Y01iaXJNcGcwOUwrYkxTdHpKQVdaZWluNmx1QXRBWW12ZjRZUTRiakg3TUJ6T1hkYzU4T0xLa1dLU2xQUTlhQnZiRjlWS3VEL3E5WEtSZFVQT2VSRllhZzdkYVlQcHRDbDRTbit6LzQwcExwZW9ROHNEeW1zODFJQWlGWTk2QnJkalR3SFEwZGhJRkgyWDF2dzh4VkZQTjV6OXdjSEI5V01LWlhpcFJvbk1IOHE2NjBaRWJ0VQ==",
-        "iv": "cUU723tP2Elrs6yIBekr+A=="
-    };
-
-    console.log('Testing with payload:', testPayload);
-
-    try {
-        // Process the notification like it would come from FCM
-        const result = processNotification(testPayload);
-        console.log('Notification processing result:', result);
-
-        // Also test the decryption directly
-        if (testPayload.encrypted === 'true' && testPayload.data && testPayload.iv) {
-            console.log('Testing direct decryption...');
-            const decrypted = await decryptNotificationPayload(testPayload.data, testPayload.iv);
-            console.log('Direct decryption result:', decrypted);
-        }
-
-    } catch (error) {
-        console.error('Error testing notification processing:', error);
-    }
-
-    console.log('=== END NOTIFICATION PROCESSING TEST ===');
-}
-
-// Make test functions available globally for manual testing
-self.testDecryptionWithBackendData = testDecryptionWithBackendData;
-self.testNotificationProcessing = testNotificationProcessing;
-
-// Handle messages from the main thread
-self.addEventListener('message', (event) => {
-    console.log('Service worker received message:', event.data);
-
-    if (event.data && event.data.type === 'TEST_ENCRYPTED_NOTIFICATION') {
-        console.log('Running encrypted notification test...');
-        testNotificationProcessing();
-    }
-});
-
-// Expose test function for debugging
-self.testNotificationDisplay = testNotificationDisplay;
-
-// Add a message listener for testing from the main thread
-self.addEventListener('message', function(event) {
-    console.log('Service worker received message:', event.data);
-
-    if (event.data && event.data.type === 'TEST_NOTIFICATION') {
-        console.log('Testing notification from message...');
-        testNotificationDisplay();
-    } else if (event.data && event.data.type === 'TEST_ENCRYPTED_NOTIFICATION') {
-        console.log('Testing encrypted notification simulation...');
-
-        // Simulate an encrypted notification
-        const testData = {
-            body: 'Test encrypted notification body',
-            url: 'https://example.com/test',
-            notificationId: 'test_encrypted_123',
-            type: 'like'
-        };
-
-        processNotification(testData);
-    } else if (event.data && event.data.type === 'TEST_PROCESS_NOTIFICATION') {
-        console.log('Testing notification processing from test page...');
-        const testData = event.data.data;
-
-        // Process the notification and send result back
-        try {
-            processNotification(testData);
-
-            // Send result back to the page
-            event.ports[0]?.postMessage({
-                type: 'NOTIFICATION_RESULT',
-                message: `Processed notification: ${testData.title} - ${testData.body}`
-            });
-        } catch (error) {
-            console.error('Error processing test notification:', error);
-            event.ports[0]?.postMessage({
-                type: 'NOTIFICATION_RESULT',
-                message: `Error processing notification: ${error.message}`
-            });
-        }
-    } else if (event.data && event.data.type === 'TEST_CRYPTO_HELPER') {
-        console.log('Testing crypto helper availability...');
-
-        try {
-            // Test if CryptoHelper is available
-            if (typeof CryptoHelper !== 'undefined') {
-                console.log('CryptoHelper is available');
-
-                // Test basic functionality
-                const testKey = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
-                const testData = "eyJib2R5IjoidGVzdCJ9"; // base64 encoded {"body":"test"}
-                const testIV = "MTIzNDU2Nzg5MDEyMzQ1Ng=="; // base64 encoded test IV
-
-                CryptoHelper.decrypt(testData, testIV, testKey)
-                    .then(result => {
-                        console.log('Crypto helper test result:', result);
-                        event.ports[0]?.postMessage({
-                            type: 'CRYPTO_TEST_RESULT',
-                            success: true,
-                            message: 'Crypto helper is working'
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Crypto helper test failed:', error);
-                        event.ports[0]?.postMessage({
-                            type: 'CRYPTO_TEST_RESULT',
-                            success: false,
-                            error: error.message
-                        });
-                    });
-            } else {
-                console.error('CryptoHelper is not available');
-                event.ports[0]?.postMessage({
-                    type: 'CRYPTO_TEST_RESULT',
-                    success: false,
-                    error: 'CryptoHelper is not available'
-                });
-            }
-        } catch (error) {
-            console.error('Error testing crypto helper:', error);
-            event.ports[0]?.postMessage({
-                type: 'CRYPTO_TEST_RESULT',
-                success: false,
-                error: error.message
-            });
-        }
-    } else if (event.data && event.data.type === 'SIMULATE_FCM_MESSAGE') {
-        console.log('Simulating FCM background message...');
-        const payload = event.data.payload;
-
-        console.log('Simulated FCM payload:', payload);
-
-        // Process exactly like a real FCM message
-        try {
-            // Check notification permission
-            if (Notification.permission !== 'granted') {
-                console.warn('Notification permission not granted, cannot show notification');
-                return;
-            }
-
-            // Check if we have data in the payload
-            if (payload.data) {
-                console.log("Simulated FCM payload data received:", payload.data);
-
-                // Create notification data structure
-                let notificationData = {
-                    body: payload.data.body || "You have a new notification",
-                    title: payload.data.title || "New Notification",
-                    url: payload.data.url || "/notifications",
-                    notificationId: payload.data.notificationId || ("notification-" + Date.now()),
-                    timestamp: payload.data.timestamp || Date.now().toString(),
-                    type: payload.data.type || "like"
-                };
-
-                // Check if encrypted (simulate decryption)
-                if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
-                    console.log("Simulated encrypted notification");
-                    // For testing, just use sample decrypted data
-                    notificationData.body = "Decrypted: Someone liked your post";
-                    notificationData.type = "like";
-                }
-
-                console.log("Final simulated notification data:", notificationData);
-
-                // Process through normal flow
-                processNotification(notificationData);
-            }
-        } catch (error) {
-            console.error('Error processing simulated FCM message:', error);
-        }
-    }
-});
-
-// Override the showNotification method to add additional filtering
-const originalShowNotification = self.registration.showNotification;
-if (originalShowNotification) {
-    self.registration.showNotification = function(title, options) {
-        // Only block very specific system notification phrases
-        const titleLower = title.toLowerCase();
-        const bodyLower = options && options.body ? options.body.toLowerCase() : '';
-
-        if (bodyLower.includes('this site has been updated in the background') ||
-            titleLower.includes('this site has been updated in the background')) {
-            console.log('Blocked notification via showNotification override:', { title, body: options?.body });
-            return Promise.resolve();
-        }
-
-        console.log('Allowing notification:', { title, body: options?.body });
-        return originalShowNotification.call(this, title, options);
-    };
-}
