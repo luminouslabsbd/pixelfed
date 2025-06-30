@@ -7,12 +7,13 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compa
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyBJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
+    apiKey: "AIzaSyCxKyv-Xh5R7iStYT9-MD7mdgb4rc3p3z0",
     authDomain: "pixelfed-38904.firebaseapp.com",
     projectId: "pixelfed-38904",
-    storageBucket: "pixelfed-38904.appspot.com",
-    messagingSenderId: "123456789012",
-    appId: "1:123456789012:web:abcdefghijklmnop"
+    storageBucket: "pixelfed-38904.firebasestorage.app",
+    messagingSenderId: "1080382857079",
+    appId: "1:1080382857079:web:412638d701febb0c034b72",
+    measurementId: "G-PTH81EBDG4"
 };
 
 // Initialize Firebase
@@ -147,7 +148,7 @@ self.addEventListener("activate", (event) => {
 });
 
 // Handle background messages from FCM
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
 
     try {
