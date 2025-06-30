@@ -61,7 +61,7 @@ if (typeof self !== 'undefined') {
                 // Convert to string (no JSON parsing for individual strings)
                 const decryptedString = new TextDecoder().decode(decryptedBuffer);
                 console.log("decryptedString:",decryptedString);
-                    decryptedString.substring(0, Math.min(100, decryptedString.length)));
+                    decryptedString.substring(0, Math.min(100, decryptedString.length));
                 return decryptedString.trim() || null;
             } catch (error) {
                 return null;
