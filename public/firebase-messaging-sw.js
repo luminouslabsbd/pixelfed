@@ -46,8 +46,6 @@ if (typeof self !== 'undefined') {
                 }
 
                 // Process key EXACTLY the same way as backend: substr(hash('sha256', key), 0, 32)
-                // Backend: hash('sha256', key) produces 64 hex chars, then substr(0, 32) takes first 32 chars
-                // Those 32 hex chars represent 32 bytes when used as raw string in PHP openssl_encrypt
                 const encoder = new TextEncoder();
                 const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(key));
                 const hashArray = new Uint8Array(hashBuffer);
@@ -55,8 +53,13 @@ if (typeof self !== 'undefined') {
 
                 // Take first 32 characters from hex string (this matches PHP's substr(hash('sha256', key), 0, 32))
                 const keyString = hashHex.substring(0, 32);
-                // Convert string to bytes (PHP treats this string as raw bytes)
-                const keyBytes = new TextEncoder().encode(keyString);
+
+                // Convert hex string to bytes the same way PHP does
+                // PHP treats the 32-character hex string as raw bytes (each character = 1 byte)
+                const keyBytes = new Uint8Array(32);
+                for (let i = 0; i < 32; i++) {
+                    keyBytes[i] = keyString.charCodeAt(i);
+                }
 
                 console.log("🔑 Key processing:", {
                     originalKeyLength: key.length,
