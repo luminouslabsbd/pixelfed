@@ -15,48 +15,52 @@ console.log("Attempting to load crypto-helper.js...");
 try {
     importScripts("/js/crypto-helper.js");
     console.log("Successfully loaded crypto-helper.js from absolute path");
-    console.log("CryptoHelper available:", typeof CryptoHelper !== 'undefined');
 } catch (error) {
-    console.error("Failed to load crypto-helper.js from absolute path:", error);
-    console.log("Error details:", error.message);
-    console.log("Attempting to load from relative path...");
+   
     try {
         importScripts("js/crypto-helper.js");
-        console.log("Successfully loaded crypto-helper.js from relative path");
-        console.log("CryptoHelper available:", typeof CryptoHelper !== 'undefined');
-    } catch (error2) {
-        console.error("Failed to load crypto-helper.js from relative path:", error2);
-        console.log("Error details:", error2.message);
-        console.log("Crypto helper not available - encrypted notifications will not work");
 
-        // Create a minimal inline crypto helper as fallback
-        console.log("Creating inline crypto helper fallback...");
+    } catch (error2) {
+        console.log("Crypto helper not available - encrypted notifications will not work");
         self.CryptoHelper = {
             async decrypt(encryptedData, iv, key) {
                 try {
-                    console.log("=== DECRYPTION DEBUG ===");
-                    console.log("Input encryptedData:", encryptedData);
-                    console.log("Input IV:", iv);
-                    console.log("Input key:", key);
+                    console.log("=== INLINE CRYPTO HELPER ===");
+                    // Backend only does SINGLE base64 encoding, not double!
+                    console.log("Raw encrypted data (base64):", encryptedData);
+                    console.log("Raw IV data (base64):", iv);
 
-                    // Convert base64 to array buffer (exactly like backend)
-                    // IMPORTANT: Backend does double base64 encoding!
-                    // 1. openssl_encrypt() with flag 0 returns base64
-                    // 2. base64_encode() encodes it again
-                    // So we need to decode twice!
-                    console.log("Converting base64 to buffers...");
-                    console.log("First base64 decode of encrypted data...");
-                    const firstDecode = atob(encryptedData);
-                    console.log("First decode result length:", firstDecode.length);
-                    console.log("First decode result (first 50 chars):", firstDecode.substring(0, 50));
-
-                    console.log("Second base64 decode of encrypted data...");
-                    const encryptedBuffer = Uint8Array.from(atob(firstDecode), c => c.charCodeAt(0));
+                    const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
                     const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
 
-                    console.log("Encrypted buffer length:", encryptedBuffer.length);
-                    console.log("IV buffer length:", ivBuffer.length);
+                    // Post message to main thread for debugging
+                    if (typeof self !== 'undefined' && self.clients) {
+                        self.clients.matchAll().then(clients => {
+                            clients.forEach(client => {
+                                client.postMessage({
+                                    type: 'DECRYPTION_DEBUG',
+                                    data: {
+                                        encryptedDataLength: encryptedData.length,
+                                        ivLength: iv.length,
+                                        encryptedBufferLength: encryptedBuffer.length,
+                                        ivBufferLength: ivBuffer.length
+                                    }
+                                });
+                            });
+                        });
+                    }
 
+                    console.log("Buffer lengths:");
+                    console.log("- Encrypted buffer length:", encryptedBuffer.length);
+                    console.log("- IV buffer length:", ivBuffer.length);
+                    console.log("- Expected IV length: 16 bytes");
+
+                    if (ivBuffer.length !== 16) {
+                        console.error("❌ IV length is wrong! Expected 16, got:", ivBuffer.length);
+                        return null;
+                    }
+
+                   
                     // Process key EXACTLY the same way as backend: substr(hash('sha256', key), 0, 32)
                     // Backend does: substr(hash('sha256', $key), 0, 32) - first 32 CHARACTERS of hex string
                     console.log("Processing key exactly like backend...");
@@ -99,9 +103,7 @@ try {
 
                     // Convert to string and parse JSON
                     const decryptedString = new TextDecoder().decode(decryptedBuffer);
-                    console.log("Decrypted string:", decryptedString);
-                    console.log("Decrypted string length:", decryptedString.length);
-                    console.log("Decrypted string (first 100 chars):", decryptedString.substring(0, 100));
+                    
 
                     // Check if string looks like JSON
                     if (!decryptedString.trim().startsWith('{') && !decryptedString.trim().startsWith('[')) {
@@ -113,6 +115,19 @@ try {
                         const parsedData = JSON.parse(decryptedString);
                         console.log("Parsed JSON data:", parsedData);
                         console.log("=== DECRYPTION SUCCESS ===");
+
+                        // Post success message to main thread
+                        if (typeof self !== 'undefined' && self.clients) {
+                            self.clients.matchAll().then(clients => {
+                                clients.forEach(client => {
+                                    client.postMessage({
+                                        type: 'DECRYPTION_SUCCESS',
+                                        data: parsedData
+                                    });
+                                });
+                            });
+                        }
+
                         return parsedData;
                     } catch (jsonError) {
                         console.error("JSON parsing failed:", jsonError);
@@ -121,16 +136,28 @@ try {
                     }
                 } catch (error) {
                     console.error("=== DECRYPTION FAILED ===");
-                    console.error("Inline crypto helper error:", error);
-                    console.error("Error name:", error.name);
-                    console.error("Error message:", error.message);
-                    console.error("Error stack:", error.stack);
+                    console.error("Error:", error.name, error.message);
+
+                    // Post failure message to main thread
+                    if (typeof self !== 'undefined' && self.clients) {
+                        self.clients.matchAll().then(clients => {
+                            clients.forEach(client => {
+                                client.postMessage({
+                                    type: 'DECRYPTION_FAILED',
+                                    error: {
+                                        name: error.name,
+                                        message: error.message
+                                    }
+                                });
+                            });
+                        });
+                    }
+
                     return null;
                 }
             }
         };
-        console.log("Inline crypto helper created successfully");
-        console.log("CryptoHelper now available:", typeof CryptoHelper !== 'undefined');
+       
     }
 }
 
@@ -234,8 +261,6 @@ function getEncryptionKey() {
     // For demo purposes, we're hardcoding the key (same as in .env)
     // This MUST match the NOTIFICATION_ENCRYPTION_KEY in your backend .env
     const key = "xJ8#p2$L7!qR9*vZ5@tN3^mE6&yK1bD4%sG0";
-    console.log('Using encryption key (first few chars):', key.substring(0, 5) + '...');
-    console.log('Expected processed key should be: cb620401cb4d6507fff3ef891590214e');
     return key;
 }
 
@@ -260,8 +285,7 @@ function processNotification(data) {
 
         for (const phrase of systemUpdatePhrases) {
             if (bodyText.includes(phrase) || titleText.includes(phrase)) {
-                console.log(`BLOCKED: System update notification detected - "${phrase}"`);
-                console.log('Blocked notification data:', { title: data.title, body: data.body });
+               
                 return; // Exit immediately
             }
         }
@@ -446,6 +470,7 @@ messaging.onBackgroundMessage(async function (payload) {
         return;
     }
 
+    console.log("tanha,",payload);
     // Only block very specific system notifications at FCM level
     if (payload.notification && payload.notification.body) {
         const body = payload.notification.body.toLowerCase();
@@ -536,14 +561,6 @@ messaging.onBackgroundMessage(async function (payload) {
         if (!notificationData.body) {
             notificationData.body = "You have a new notification";
         }
-
-        console.log("=== FINAL NOTIFICATION DATA ===");
-        console.log("Final notification data to process:", JSON.stringify(notificationData, null, 2));
-        console.log("Notification body that will be displayed:", notificationData.body);
-        console.log("Notification type:", notificationData.type);
-        console.log("Notification URL:", notificationData.url);
-        console.log("=== END FINAL DATA ===");
-
         // Process the notification through the normal processing function
         processNotification(notificationData);
     } else {
