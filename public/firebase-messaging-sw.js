@@ -40,8 +40,18 @@ try {
                     console.log("Input key:", key);
 
                     // Convert base64 to array buffer (exactly like backend)
+                    // IMPORTANT: Backend does double base64 encoding!
+                    // 1. openssl_encrypt() with flag 0 returns base64
+                    // 2. base64_encode() encodes it again
+                    // So we need to decode twice!
                     console.log("Converting base64 to buffers...");
-                    const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+                    console.log("First base64 decode of encrypted data...");
+                    const firstDecode = atob(encryptedData);
+                    console.log("First decode result length:", firstDecode.length);
+                    console.log("First decode result (first 50 chars):", firstDecode.substring(0, 50));
+
+                    console.log("Second base64 decode of encrypted data...");
+                    const encryptedBuffer = Uint8Array.from(atob(firstDecode), c => c.charCodeAt(0));
                     const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
 
                     console.log("Encrypted buffer length:", encryptedBuffer.length);
@@ -90,12 +100,25 @@ try {
                     // Convert to string and parse JSON
                     const decryptedString = new TextDecoder().decode(decryptedBuffer);
                     console.log("Decrypted string:", decryptedString);
+                    console.log("Decrypted string length:", decryptedString.length);
+                    console.log("Decrypted string (first 100 chars):", decryptedString.substring(0, 100));
 
-                    const parsedData = JSON.parse(decryptedString);
-                    console.log("Parsed JSON data:", parsedData);
-                    console.log("=== DECRYPTION SUCCESS ===");
+                    // Check if string looks like JSON
+                    if (!decryptedString.trim().startsWith('{') && !decryptedString.trim().startsWith('[')) {
+                        console.error("Decrypted string does not look like JSON:", decryptedString);
+                        return null;
+                    }
 
-                    return parsedData;
+                    try {
+                        const parsedData = JSON.parse(decryptedString);
+                        console.log("Parsed JSON data:", parsedData);
+                        console.log("=== DECRYPTION SUCCESS ===");
+                        return parsedData;
+                    } catch (jsonError) {
+                        console.error("JSON parsing failed:", jsonError);
+                        console.error("Raw decrypted string:", JSON.stringify(decryptedString));
+                        return null;
+                    }
                 } catch (error) {
                     console.error("=== DECRYPTION FAILED ===");
                     console.error("Inline crypto helper error:", error);
@@ -156,18 +179,6 @@ firebase.initializeApp({
     appId: "1:1080382857079:web:412638d701febb0c034b72",
     measurementId: "G-PTH81EBDG4",
 });
-
-// firebase.initializeApp({
-//     apiKey: "YOUR_API_KEY",
-//     authDomain: "YOUR_AUTH_DOMAIN",
-//     projectId: "YOUR_PROJECT_ID",
-//     storageBucket: "YOUR_STORAGE_BUCKET",
-//     messagingSenderId: "YOUR_SENDER_ID",
-//     appId: "YOUR_APP_ID",
-//     measurementId: "YOUR_MEASUREMENT_ID"
-//   });
-  
-  
 
 const messaging = firebase.messaging();
 
