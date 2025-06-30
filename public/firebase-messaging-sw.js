@@ -399,17 +399,37 @@ messaging.onBackgroundMessage(async function (payload) {
 
     // Check if we have data in the payload
     if (payload.data) {
-        console.log("FCM payload data received:", payload.data);
+        console.log("=== DEBUGGING BACKEND DATA FORMAT ===");
+        console.log("Full FCM payload:", JSON.stringify(payload, null, 2));
+        console.log("payload.data:", JSON.stringify(payload.data, null, 2));
+        console.log("payload.data keys:", Object.keys(payload.data));
+        console.log("payload.data.body:", payload.data.body);
+        console.log("payload.data.title:", payload.data.title);
+        console.log("payload.data.encrypted:", payload.data.encrypted);
+        console.log("payload.data.data:", payload.data.data);
+        console.log("payload.data.iv:", payload.data.iv);
+        console.log("=== END DEBUGGING ===");
         
-        // Create a basic notification with the available data
+        // Create notification data structure based on backend format
         let notificationData = {
-            body: payload.data.body || "You have a new notification",
             title: payload.data.title || "New Notification",
-            url: payload.data.url || "/notifications",
-            notificationId: payload.data.notificationId || ("notification-" + Date.now()),
-            timestamp: payload.data.timestamp || Date.now().toString(),
-            type: payload.data.type || "like"
+            timestamp: payload.data.timestamp || Date.now().toString()
         };
+
+        // Handle encrypted vs unencrypted notifications differently
+        if (payload.data.encrypted === "true") {
+            console.log("Processing ENCRYPTED notification from backend");
+            // For encrypted notifications, backend sends: title, timestamp, encrypted, data, iv
+            // The body, url, notificationId, type are encrypted in payload.data.data
+            // Don't set defaults yet - wait for decryption
+        } else {
+            console.log("Processing UNENCRYPTED notification from backend");
+            // For unencrypted notifications, backend sends: title, body, url, notificationId, timestamp, type
+            notificationData.body = payload.data.body || "You have a new notification";
+            notificationData.url = payload.data.url || "/notifications";
+            notificationData.notificationId = payload.data.notificationId || ("notification-" + Date.now());
+            notificationData.type = payload.data.type || "like";
+        }
         
         // Check if the notification is encrypted
         if (payload.data.encrypted === "true" && payload.data.data && payload.data.iv) {
@@ -423,28 +443,48 @@ messaging.onBackgroundMessage(async function (payload) {
                 
                 if (decryptedData) {
                     console.log("Successfully decrypted notification data:", decryptedData);
-                    
-                    // Update notification data with decrypted fields
-                    if (decryptedData.body) notificationData.body = decryptedData.body;
-                    if (decryptedData.url) notificationData.url = decryptedData.url;
-                    if (decryptedData.notificationId) notificationData.notificationId = decryptedData.notificationId;
-                    if (decryptedData.type) notificationData.type = decryptedData.type;
-                    
-                    console.log("Updated notification data with decrypted fields:", notificationData);
+
+                    // Set all fields from decrypted data (these were encrypted in backend)
+                    notificationData.body = decryptedData.body || "You have a new notification";
+                    notificationData.url = decryptedData.url || "/notifications";
+                    notificationData.notificationId = decryptedData.notificationId || ("notification-" + Date.now());
+                    notificationData.type = decryptedData.type || "like";
+
+                    console.log("Updated notification data with ALL decrypted fields:", notificationData);
                 } else {
                     console.error("Failed to decrypt notification data, using fallback");
+                    // Set fallback values for encrypted notification that failed to decrypt
+                    notificationData.body = "You have a new notification (decryption failed)";
+                    notificationData.url = "/notifications";
+                    notificationData.notificationId = "notification-" + Date.now();
+                    notificationData.type = "like";
                 }
             } catch (error) {
                 console.error("Error decrypting notification:", error);
-                console.error("Error details:", { 
-                    message: error.message, 
+                console.error("Error details:", {
+                    message: error.message,
                     name: error.name,
-                    stack: error.stack 
+                    stack: error.stack
                 });
+                // Set fallback values for encrypted notification that had decryption error
+                notificationData.body = "You have a new notification (decryption error)";
+                notificationData.url = "/notifications";
+                notificationData.notificationId = "notification-" + Date.now();
+                notificationData.type = "like";
             }
         }
-        
-        console.log("Final notification data to process:", notificationData);
+
+        // Ensure we always have a body set
+        if (!notificationData.body) {
+            notificationData.body = "You have a new notification";
+        }
+
+        console.log("=== FINAL NOTIFICATION DATA ===");
+        console.log("Final notification data to process:", JSON.stringify(notificationData, null, 2));
+        console.log("Notification body that will be displayed:", notificationData.body);
+        console.log("Notification type:", notificationData.type);
+        console.log("Notification URL:", notificationData.url);
+        console.log("=== END FINAL DATA ===");
 
         // Process the notification through the normal processing function
         processNotification(notificationData);
@@ -600,6 +640,8 @@ self.addEventListener('message', function(event) {
     } else if (event.data && event.data.type === 'SIMULATE_FCM_MESSAGE') {
         console.log('Simulating FCM background message...');
         const payload = event.data.payload;
+
+        console.log('Simulated FCM payload:', payload);
 
         // Process exactly like a real FCM message
         try {
