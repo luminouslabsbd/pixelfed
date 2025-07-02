@@ -185,8 +185,8 @@ class NotificationAppGatewayService
             // Create the notification payload
             $notificationData = [
                 'title' => env('APP_NAME') ?? "Pixelfed",
-                'body' =>  NotificationEncryptionService::decryptString(self::bodyTitleMake($type, $actor)) ,
-                'url' => NotificationEncryptionService::decryptString($url),
+                'body' =>  NotificationEncryptionService::encryptString(self::bodyTitleMake($type, $actor)) ,
+                'url' => NotificationEncryptionService::encryptString($url),
                 'notificationId' => $notificationId,
                 'timestamp' => (string) time(),
                 'type' => $type,
