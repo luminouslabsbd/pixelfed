@@ -190,7 +190,7 @@ class NotificationAppGatewayService
                 'notificationId' => $notificationId,
                 'timestamp' => (string) time(),
                 'type' => $type,
-                'encrypted' => true
+                'encrypted' => 'true' // FCM requires all data values to be strings
             ];
             
             // Log the notification data for debugging
