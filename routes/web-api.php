@@ -9,6 +9,10 @@ Route::domain(config('pixelfed.domain.app'))->middleware(['validemail', 'twofact
         Route::get('v1/polls/{id}', 'PollController@getPoll');
         Route::post('v1/polls/{id}/votes', 'PollController@vote');
 
+        Route::post('notification/encrypt', 'NotificationController@encrypt');
+        Route::post('notification/decrypt', 'NotificationController@decrypt');
+        
+        
         Route::group(['prefix' => 'web-admin'], function() {
             Route::get('software-update/check', [SoftwareUpdateController::class, 'getSoftwareUpdateCheck']);
         });

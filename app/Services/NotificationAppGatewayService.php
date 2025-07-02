@@ -185,52 +185,12 @@ class NotificationAppGatewayService
             // Create the notification payload
             $notificationData = [
                 'title' => env('APP_NAME') ?? "Pixelfed",
-                'body' => self::bodyTitleMake($type, $actor),
-                'url' => $url,
+                'body' =>  NotificationEncryptionService::decryptString(self::bodyTitleMake($type, $actor)) ,
+                'url' => NotificationEncryptionService::decryptString($url),
                 'notificationId' => $notificationId,
                 'timestamp' => (string) time(),
                 'type' => $type
             ];
-            
-            // For FCM compatibility, all values must be strings
-            $notificationData = [
-                'title' => $notificationData['title'] ?? env('APP_NAME') ?? "Pixelfed",
-                'body' =>  $notificationData['body'] ?? self::bodyTitleMake($type, $actor),
-                'url' => $notificationData['url'] ?? $url,
-                'notificationId' => $notificationData['notificationId'] ?? $notificationId,
-                'timestamp' => $notificationData['timestamp'] ?? time(),
-                'type' => $notificationData['type'] ?? $type
-            ];
-            
-            // Encrypt only the body and url fields
-            try {
-                $encryptionService = new \App\Services\NotificationEncryptionService();
-
-                // Encrypt body and url separately
-                $encryptedBody = $encryptionService->encryptString($notificationData['body']);
-                $encryptedUrl = $encryptionService->encryptString($notificationData['url']);
-
-                if ($encryptedBody['encrypted'] && $encryptedUrl['encrypted']) {
-                    // Replace body and url with encrypted versions, keep other fields unencrypted
-                    $notificationData = [
-                        'title' => $notificationData['title'],
-                        'body' => $encryptedBody['data'],
-                        'body_iv' => $encryptedBody['iv'],
-                        'url' => $encryptedUrl['data'],
-                        'url_iv' => $encryptedUrl['iv'],
-                        'notificationId' => $notificationData['notificationId'],
-                        'timestamp' => $notificationData['timestamp'],
-                        'type' => $notificationData['type'],
-                        'encrypted' => 'true'
-                    ];
-
-                    \Log::info('Notification body and url encrypted successfully');
-                } else {
-                    \Log::error('Failed to encrypt notification body/url, sending unencrypted');
-                }
-            } catch (\Exception $e) {
-                \Log::error('Exception encrypting notification data: ' . $e->getMessage());
-            }
             
             // Log the notification data for debugging
             \Log::info('Sending FCM notification with data:', $notificationData);
