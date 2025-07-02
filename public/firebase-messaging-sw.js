@@ -89,10 +89,10 @@ messaging.onBackgroundMessage(async (payload) => {
                 notificationData.body = decryptedData.body || "You have a new notification";
                 notificationData.url = decryptedData.url || "/notifications";
                 
-                console.log("Decryption successful:", {
-                    body: notificationData.body,
-                    url: notificationData.url
-                });
+                // console.log("Decryption successful:", {
+                //     body: notificationData.body,
+                //     url: notificationData.url
+                // });
                 
             } catch (error) {
                 console.error("Error decrypting notification:", error);
@@ -123,11 +123,11 @@ messaging.onBackgroundMessage(async (payload) => {
             }]
         });
 
-        console.log("Notification displayed:", {
-            title: notificationData.title,
-            body: notificationData.body,
-            url: notificationData.url
-        });
+        // console.log("Notification displayed:", {
+        //     title: notificationData.title,
+        //     body: notificationData.body,
+        //     url: notificationData.url
+        // });
 
     } catch (error) {
         console.error('Error processing FCM background message:', error);
