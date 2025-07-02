@@ -189,7 +189,8 @@ class NotificationAppGatewayService
                 'url' => NotificationEncryptionService::decryptString($url),
                 'notificationId' => $notificationId,
                 'timestamp' => (string) time(),
-                'type' => $type
+                'type' => $type,
+                'encrypted' => true
             ];
             
             // Log the notification data for debugging
