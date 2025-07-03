@@ -174,9 +174,7 @@ class NotificationAppGatewayService
 
     public static function sendFcmNotification($userToken, $type, $actor, $url)
     {
-        \Log::info('Starting sendFcmNotification');
         $accessToken = self::getGoogleAccessToken();
-        \Log::info('Access token retrieved: ' . ($accessToken ? 'YES' : 'NO'));
 
         if($accessToken) {
             // Create a unique notification ID to prevent duplicates
@@ -192,9 +190,6 @@ class NotificationAppGatewayService
                 'type' => $type,
                 'encrypted' => 'true' // FCM requires all data values to be strings
             ];
-            
-            // Log the notification data for debugging
-            \Log::info('Sending FCM notification with data:', $notificationData);
             
             // Using data-only message to avoid automatic display by FCM
             // This gives full control to the service worker
